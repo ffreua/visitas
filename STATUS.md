@@ -1,6 +1,17 @@
 # STATUS
 
-ETAPA ATUAL: PWA (FASE 17) concluída e validada de verdade no navegador. Faltam: restore de backup/zona de perigo, hardening final (revisão de segurança independente) e deploy real.
+ETAPA ATUAL: Restore de backup, Zona de perigo (zerar dados clínicos) e arquivos de deploy (`public_html/index.php` + `.htaccess`) concluídos e testados. Falta: revisão de segurança independente (seção 132) e o deploy real (depende de acesso à hospedagem).
+
+## Restore, Zona de perigo e deploy prep (2026-08-15)
+- `php artisan neurologia:restore {backup.sqlite3}` — **exclusivamente CLI**, nunca rota web (seção 95 do PRD permite essa saída quando o restore via navegador não é seguro — trocar o arquivo do SQLite por baixo de uma aplicação com PHP-FPM ativo é arriscado). Verifica integridade do backup escolhido, cria e verifica um backup de segurança do estado atual antes de sobrescrever, verifica integridade do resultado, audita a ação.
+- `App\Services\BackupService` extraído de dentro do comando `neurologia:backup` para ser reusado pela Zona de Perigo e pelo restore — resolve o caminho do banco a partir da conexão padrão ATUAL (`config('database.default')`), não mais hardcoded `'sqlite'`, para funcionar corretamente sob troca dinâmica de conexão (necessário para testar o fluxo com um arquivo real em vez de `:memory:`).
+- `POST /api/admin/system/reset-clinical-data` (Zona de Perigo, seções 96-97): reautenticação por senha + frase exata "ZERAR DADOS CLINICOS", cria e verifica um backup de segurança **antes** de apagar qualquer coisa (aborta sem apagar nada se o backup falhar), apaga `admissions` (cascata para diagnósticos/pendências/visitas) e `patients`, preserva usuários/CID-10/especialidades/planos/schema/`audit_logs` (inclusive o próprio registro `RESET_DATABASE` da operação).
+- `GET /api/admin/system/backups` (somente leitura — lista o que existe, a restauração em si é só CLI).
+- Tela `/admin/sistema` no frontend (integrity_check, lista de backups, zona de perigo) — testada visualmente e funcionalmente via Playwright (criou paciente real, zerou dados, confirmou desaparecimento do dashboard).
+- `public_html/index.php` e `.htaccess` reais criados (carregam o Laravel de `equipe/app`, servem assets estáticos direto via Apache, só caem no PHP para `/api/*` e o shell do SPA) — documentada a decisão pendente sobre se `visitas` será document root dedicado ou subpasta dentro de um `public_html` compartilhado (afeta a profundidade dos `../` no index.php e se `VITE_BASE_PATH` precisa ser usado no build).
+- `DEPLOYMENT_HOSTGATOR.md` atualizado com o passo a passo completo, agendamento via cron, e as instruções de backup/restore/zona de perigo.
+- 5 novos testes de feature (`DangerZoneTest`) — 41 testes no total, todos passando (verificado também com `--order-by=random` duas vezes, sem dependência de ordem).
+- **Bug de teste encontrado e corrigido** (não um bug de produção): o teste do fluxo completo de reset precisava de um SQLite em arquivo real (não `:memory:`) para o backup de segurança conseguir copiar algo; a primeira tentativa mutou a conexão `sqlite` compartilhada com `DB::purge()`, o que vazou e quebrou ~20 testes de outras classes que rodam depois na mesma execução do PHPUnit (o Laravel mantém uma única conexão `:memory:` viva pelo processo inteiro para otimizar `RefreshDatabase`). Corrigido usando uma conexão nomeada separada só para esse teste, nunca tocando na conexão `sqlite` padrão.
 
 ## Backend (Laravel 12 + SQLite)
 - Schema completo (migrations): users, patients, health_plans, medical_specialties, cid10, admissions, admission_diagnoses, pending_items, daily_rounds, audit_logs — WAL, busy_timeout=5000 e foreign_keys=ON confirmados via `PRAGMA` real, não só configurado.
@@ -30,12 +41,11 @@ Sem `chromium-cli` disponível neste Windows, foi instalado Playwright isolado n
 3. **PWA**: build de produção servido via `vite preview`, service worker confirmado ativo, Cache Storage/localStorage/IndexedDB inspecionados após login + criação de paciente real — zero rastro de dados clínicos fora do shell estático (seção 116 do PRD).
 
 ## PENDENTE — próximas fases
-- **Restore de backup** (seção 95) e **Zona de perigo / zerar dados clínicos** (seções 96-97): não implementados.
 - **Importação CSV de planos** (seção 16, opcional): não implementada.
-- **Hardening final e revisão independente** (FASE 19, seção 132): ainda não realizada — IDOR/CSRF/XSS precisam de uma revisão dedicada antes do deploy real.
-- **Deploy HostGator real** (FASE 20): `DEPLOYMENT_HOSTGATOR.md` tem o roteiro; falta confirmar a estrutura exata do domínio/subpasta (ver nota abaixo) e executar. Isso exige acesso real ao cPanel/hospedagem, que não está disponível neste ambiente de desenvolvimento.
+- **Hardening final e revisão independente** (FASE 19, seção 132): ainda não realizada — IDOR/CSRF/XSS precisam de uma revisão dedicada antes do deploy real. Este é o próximo passo recomendado.
+- **Deploy HostGator real** (FASE 20): arquivos (`public_html/index.php`, `.htaccess`, roteiro completo em `DEPLOYMENT_HOSTGATOR.md`) estão prontos; falta confirmar a estrutura exata do domínio/subpasta no cPanel real e executar o upload — isso exige acesso à hospedagem, que não está disponível neste ambiente de desenvolvimento.
 
-TESTES EXECUTADOS: `php artisan test` (36 passando), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend, e os três fluxos Playwright descritos acima.
+TESTES EXECUTADOS: `php artisan test` (41 passando, inclusive `--order-by=random` 2x), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend, e quatro fluxos Playwright reais no navegador (fluxo assistencial completo, dashboard+exportação, PWA, sistema/zona de perigo).
 TESTES APROVADOS: todos os executados acima.
 
 PROBLEMAS CONHECIDOS:
@@ -46,4 +56,4 @@ PROBLEMAS CONHECIDOS:
 - Projeto está dentro de uma pasta sincronizada pelo OneDrive — considerar excluir `vendor/`, `node_modules/`, `equipe/data`/`equipe/backups` da sincronização.
 
 PRÓXIMO PASSO:
-- Restore de backup + zona de perigo (zerar dados clínicos), depois a revisão de segurança independente (seção 132: rotas sem autenticação, IDOR, bypass de RBAC, CSRF, XSS, SQL injection, mass assignment, soft delete ignorado por queries, etc.) revisitando o código como se não tivesse sido eu quem o escreveu — e só então o roteiro de deploy real (FASE 20), que depende de acesso à hospedagem.
+- Revisão de segurança independente (seção 132 do PRD): rotas sem autenticação, IDOR, bypass de RBAC, CSRF, XSS, SQL injection, mass assignment, soft delete ignorado por queries, dados excluídos vazando em dashboards/exports, sobrescrita de plano anterior, erros de timezone, cache PWA de dados clínicos, concorrência SQLite/`database is locked` — revisitando o código como se não tivesse sido eu quem o escreveu. Depois disso, o projeto está pronto para a FASE 20 (deploy real), que só pode ser executada com acesso à hospedagem HostGator.

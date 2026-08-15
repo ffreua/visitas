@@ -5,6 +5,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Restore de backup (`php artisan neurologia:restore`, CLI-only por segurança) e Zona de Perigo (zerar dados clínicos preservando referências, com backup verificado obrigatório antes).
+- Tela `/admin/sistema` (integrity_check, lista de backups, zona de perigo).
+- `public_html/index.php` e `.htaccess` reais para o deploy em produção.
 - Dashboard de indicadores administrativos (volume, planos, interconsultas, tempo de internação, cobertura de visita, diagnósticos/concordância, reinternação, pendências, avaliações únicas, cobertura por médico, qualidade dos dados).
 - Exportação XLSX (Pacientes, Episodios, Diagnosticos, Visitas, Pendencias), identificável (reautenticação) ou pseudonimizada, entregue por rota autenticada e apagada após o download.
 - PWA: manifest, service worker (shell-only, nunca cacheia `/api/*`), ícones, hint de instalação iOS, aviso de offline.

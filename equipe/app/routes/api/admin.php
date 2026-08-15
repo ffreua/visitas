@@ -25,6 +25,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::put('/medical-specialties/{medicalSpecialty}', [MedicalSpecialtyController::class, 'update'])->name('medical-specialties.update');
 
     Route::get('/system/integrity-check', [SystemController::class, 'integrityCheck'])->name('system.integrity-check');
+    Route::get('/system/backups', [SystemController::class, 'backups'])->name('system.backups');
+    Route::post('/system/reset-clinical-data', [SystemController::class, 'resetClinicalData'])->name('system.reset-clinical-data');
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/data-quality', [DashboardController::class, 'dataQuality'])->name('dashboard.data-quality');

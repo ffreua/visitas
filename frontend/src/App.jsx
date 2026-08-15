@@ -14,6 +14,7 @@ import MedicalSpecialtiesAdminPage from './pages/admin/MedicalSpecialtiesAdminPa
 import TrashedAdminPage from './pages/admin/TrashedAdminPage'
 import DashboardAdminPage from './pages/admin/DashboardAdminPage'
 import ExportsAdminPage from './pages/admin/ExportsAdminPage'
+import SystemAdminPage from './pages/admin/SystemAdminPage'
 import OfflineBanner from './components/OfflineBanner'
 
 // import.meta.env.BASE_URL reflete o "base" do vite.config.js (ver
@@ -45,6 +46,7 @@ export default function App() {
                 <Route path="/admin/planos" element={<HealthPlansAdminPage />} />
                 <Route path="/admin/especialidades" element={<MedicalSpecialtiesAdminPage />} />
                 <Route path="/admin/excluidos" element={<TrashedAdminPage />} />
+                <Route path="/admin/sistema" element={<SystemAdminPage />} />
               </Route>
             </Route>
           </Route>
