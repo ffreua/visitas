@@ -1,63 +1,49 @@
 # STATUS
 
-ETAPA ATUAL: Exportação XLSX (FASE 15) concluída, backend + frontend, testado. Faltam: PWA, restore de backup/zona de perigo, hardening final e deploy.
+ETAPA ATUAL: PWA (FASE 17) concluída e validada de verdade no navegador. Faltam: restore de backup/zona de perigo, hardening final (revisão de segurança independente) e deploy real.
 
-## Exportação XLSX (2026-08-15)
-- `POST /api/admin/exports` (filtros de período/tipo/modalidade/pagamento/plano/especialidade/médico/CID/status + `pseudonymized`) gera um workbook com abas Pacientes, Episodios, Diagnosticos, Visitas, Pendencias (`App\Services\AdmissionExportService`, PhpSpreadsheet).
-- Export identificável exige reautenticação por senha (403 se incorreta); export pseudonimizado troca nome/prontuário por `PAC-00001` e não exige senha.
-- Arquivo gerado fora de `public_html` (`equipe/exports`), entregue só por `GET /api/admin/exports/{token}/download` (admin-only, valida `basename()` contra path traversal, 404 se não for `.xlsx` existente) e apagado logo após o download (`deleteFileAfterSend`) — comportamento confirmado tanto em teste automatizado (disparando `sendContent()` manualmente, já que o cliente de teste do Laravel não passa pelo ciclo real de `->send()`) quanto num download real via navegador.
-- `AuditLogger` registra a ação EXPORT com admin, filtros aplicados (só os nomes, não os dados), quantidade de linhas e se foi pseudonimizado (seção 88).
-- Comando `exports:cleanup` (backstop para exports gerados e nunca baixados) + `neurologia:backup` agendados via `routes/console.php` (`Schedule::command`) — só rodam de fato se o cPanel tiver Cron Job chamando `php artisan schedule:run` a cada minuto; a aplicação funciona igual sem cron.
-- Lógica de filtro compartilhada entre dashboard e exportação extraída para `App\Services\AdmissionFilters` (evita as duas features divergirem silenciosamente sobre o que "período X, médico Y" significa).
-- Tela `/admin/exportacoes` no frontend, testada com download real via Playwright (arquivo `.xlsx` validado abrindo com PhpSpreadsheet).
-- 5 novos testes de feature (`ExportTest`) — 36 testes no total, todos passando.
-
-## Nota importante sobre o ambiente Windows de desenvolvimento
-Pastas dentro do OneDrive às vezes ganham o atributo **ReadOnly** (efeito colateral inofensivo do OneDrive/Explorer, não uma permissão real), mas isso faz `is_writable()` do PHP mentir e quebra comandos do Laravel com erro "diretório deve existir e ser gravável" (aconteceu com `bootstrap/cache`). Se isso acontecer de novo: `attrib -R <pasta> /S /D` no PowerShell resolve. Sem relevância para produção (Linux/cPanel).
-
-## Dashboard de indicadores (2026-08-15)
-- `GET /api/admin/dashboard` (filtros: período, tipo de atendimento, modalidade, pagamento, plano, especialidade, médico, CID, incluir excluídos) e `GET /api/admin/dashboard/data-quality` — cobrem volume, particular×plano, interconsultas, tempo de internação (hospitalar × Neurologia, nunca misturados), cobertura de visita diária, diagnósticos (top + concordância hipótese→final), reinternação (7/30 dias), pendências, avaliações únicas, cobertura operacional por médico (sem ranking) e painel de qualidade dos dados (seção 80).
-- Percentis (P25/mediana/P75/P90) calculados em PHP (`App\Services\Percentiles`) já que SQLite não tem `PERCENTILE_CONT` nativo — coberto por teste unitário.
-- Tela `/admin/dashboard` no frontend consumindo tudo isso, testada visualmente via Playwright (390px).
-- 3 novos testes de feature (`DashboardTest`) + 3 unitários (`PercentilesTest`) — 31 testes no total, todos passando.
-- Bug encontrado e corrigido durante o teste visual: "patient-days" aparecia como `0.000029902511574074073` (fração de segundo sem arredondamento) — corrigido com `round(..., 1)`.
-
-ETAPAS CONCLUÍDAS:
-
-## Backend (Laravel 12 + SQLite) — ver histórico anterior para o detalhamento completo
-- Schema completo, autenticação/RBAC, pacientes/episódios, planos/especialidades/CID-10, interconsulta/avaliação única, visita diária, pendências, soft delete/restore/hard delete, backups com retenção — tudo testado (25 testes automatizados, Pint limpo).
-- Novo: `GET /api/physicians` — lista enxuta de médicos ativos (para atribuir responsável do dia), acessível a qualquer usuário autenticado.
+## Backend (Laravel 12 + SQLite)
+- Schema completo (migrations): users, patients, health_plans, medical_specialties, cid10, admissions, admission_diagnoses, pending_items, daily_rounds, audit_logs — WAL, busy_timeout=5000 e foreign_keys=ON confirmados via `PRAGMA` real, não só configurado.
+- Autenticação por sessão/cookie (sem Sanctum — mesma origem), troca de senha obrigatória no primeiro login, RBAC via Policies (ADMIN/PHYSICIAN).
+- Pacientes/episódios: busca por prontuário (reinternação), bloqueio de episódio ativo duplicado, snapshot do plano de saúde por episódio, optimistic locking (`version`, 409 em edição concorrente).
+- Planos de saúde/especialidades: autocomplete accent/case-insensitive, CRUD admin-only, nunca apaga registro usado (só `active=false`).
+- CID-10: seed inicial (~24 códigos comuns em Neurologia) + autocomplete + `cid10:import {csv}` para a tabela completa em produção.
+- Interconsulta, avaliação única (conclusão fecha o episódio automaticamente + `convert-to-followup`), visita diária (reset lógico diário sem perder histórico), pendências.
+- Soft delete (médico) / restore e hard delete (admin, reautenticação + frase "EXCLUIR DEFINITIVAMENTE") — testado que PHYSICIAN recebe 403 mesmo chamando a API diretamente.
+- `neurologia:preflight`, `neurologia:backup` (checkpoint WAL + checksum + retenção diária/semanal/mensal, agendado via `Schedule::command`), `cid10:import`.
+- Dashboard de indicadores: `GET /api/admin/dashboard` (volume, particular×plano, interconsultas, tempo de internação hospitalar×Neurologia — nunca misturados, cobertura de visita diária, diagnósticos + concordância hipótese→final, reinternação 7/30 dias, pendências, avaliações únicas, cobertura operacional por médico sem ranking) e `GET /api/admin/dashboard/data-quality` (seção 80). Percentis calculados em PHP (`App\Services\Percentiles`, SQLite não tem `PERCENTILE_CONT`).
+- Exportação XLSX: `POST /api/admin/exports` + `GET /api/admin/exports/{token}/download` — workbook (Pacientes, Episodios, Diagnosticos, Visitas, Pendencias) via PhpSpreadsheet, export identificável exige reautenticação por senha, export pseudonimizado troca nome/prontuário por código, arquivo fora de `public_html`, apagado após o download, `exports:cleanup` como backstop para órfãos. Filtros compartilhados com o dashboard via `App\Services\AdmissionFilters`.
+- `GET /api/physicians` — lista de médicos ativos para atribuir responsável do dia (qualquer usuário autenticado, distinto da gestão de equipe admin-only).
+- 36 testes automatizados passando, cobrindo os cenários críticos do PRD (seções 107-114) + dashboard + exportação + retenção de backup. Laravel Pint limpo.
 
 ## Frontend (React + Vite)
-- Cliente axios (`src/lib/api.js`) com sessão/cookie (sem Sanctum), CSRF automático via `withXSRFToken`, e interceptors para 401 (sessão expirada → `/login`) e 423 (troca de senha pendente → `/trocar-senha`).
-- `AuthContext` (login/logout/troca de senha/`me`) + `ProtectedRoute` (bloqueia acesso sem sessão, força troca de senha, restringe rotas admin).
-- Vite configurado com proxy `/api` → Laravel em dev (mesma origem do ponto de vista do navegador) e `base`/`basename` parametrizáveis via `VITE_BASE_PATH` para o caso de produção ficar em subpasta do domínio (`drfernandofreua.com.br/visitas`).
-- Telas construídas: Login, Troca de senha obrigatória, Dashboard (cards de resumo, busca, filtros da seção 56, lista de casos ativos mobile-first — seção 57), Novo atendimento (busca por prontuário → cadastro se não encontrado → alerta de reinternação → bloqueio de episódio ativo duplicado → formulário completo com autocomplete de plano/especialidade/CID), Detalhe do atendimento (identificação, internação, pagamento, diagnósticos, visita de hoje com atribuição de responsável e "visita realizada", pendências, encerrar acompanhamento/concluir avaliação única, converter avaliação única em acompanhamento, excluir com motivo), Altas/Histórico, e páginas admin (Equipe, Planos de saúde, Especialidades, Excluídos com restaurar/excluir definitivamente).
-- CSS mobile-first próprio (`index.css`) — sem framework, cards/pills/badges, testado visualmente em viewport 390px.
-- `npm run lint` (oxlint) e `npm run build` rodando sem erros.
+- Cliente axios com sessão/cookie, CSRF automático (`withXSRFToken`), interceptors para 401 (sessão expirada → `/login`) e 423 (troca de senha pendente → `/trocar-senha`).
+- Telas: Login, Troca de senha obrigatória, Dashboard (busca/filtros/cards mobile-first), Novo atendimento (busca por prontuário → cadastro se não encontrado → alerta de reinternação → bloqueio de episódio ativo duplicado → formulário com autocomplete de plano/especialidade/CID), Detalhe do atendimento (diagnósticos, visita de hoje com atribuição de responsável, pendências, encerrar/concluir avaliação única, converter para acompanhamento, excluir com motivo), Altas/Histórico, e páginas admin (Dashboard de indicadores, Exportações, Equipe, Planos, Especialidades, Excluídos com restaurar/excluir definitivamente).
+- CSS mobile-first próprio (`index.css`), testado visualmente em viewport 390px.
+- PWA: `vite-plugin-pwa` com precache restrito ao shell estático, **nenhuma** regra de `runtimeCaching` e `navigateFallbackDenylist` para `/api/*` — o service worker gerado não intercepta nenhuma chamada de API. Ícones placeholder (192/512/512-maskable/apple-touch-icon) gerados via GD. Meta tags iOS + hint de instalação (`IosInstallHint`, seção 64). `OfflineBanner` com a mensagem exata da seção 63 quando offline.
+- `npm run lint` (oxlint, 1 warning não bloqueante) e `npm run build` rodando sem erros.
 
-## Teste end-to-end no navegador (Playwright, headless, viewport 390×844)
-Executado o fluxo completo: login com `admin`/`senha@1234` → troca de senha obrigatória → dashboard → novo atendimento com prontuário inexistente → cadastro de paciente → formulário de episódio (Institucional/Acompanhamento/Particular + autocomplete de CID) → detalhe do atendimento → atribuir responsável → marcar visita realizada → criar pendência → resolver pendência → encerrar acompanhamento com diagnóstico final → confirmar que o caso sai da lista de ativos e aparece em Altas/Histórico. Sem erros de console além dos esperados (401 antes do login, 404 na busca de prontuário inexistente — comportamento correto). Screenshots confirmam layout mobile correto em cada etapa.
+## Testes de verdade no navegador (não só a suíte automatizada)
+Sem `chromium-cli` disponível neste Windows, foi instalado Playwright isolado numa pasta de scratchpad (não como dependência do projeto) para dirigir um Chromium headless (viewport mobile 390×844) através de três fluxos reais:
+1. **Fluxo assistencial completo**: login → troca de senha obrigatória → novo paciente → novo episódio com autocomplete de CID → atribuir responsável → visita realizada → pendência → resolver pendência → encerrar acompanhamento → confirmar saída de ativos e entrada em histórico. Sem erros de console além dos esperados.
+2. **Dashboard e exportação**: dados de exemplo criados via API, dashboard renderizado e inspecionado visualmente (encontrou e corrigiu o bug do "patient-days" sem arredondamento), exportação XLSX baixada de verdade e validada abrindo o arquivo com PhpSpreadsheet.
+3. **PWA**: build de produção servido via `vite preview`, service worker confirmado ativo, Cache Storage/localStorage/IndexedDB inspecionados após login + criação de paciente real — zero rastro de dados clínicos fora do shell estático (seção 116 do PRD).
 
-## PENDENTE (não iniciado ou parcial) — próximas fases
-- **Restore de backup** (seção 95) e **Zona de perigo / zerar dados** (seções 96-97): não implementados.
-- **PWA** (FASE 17): manifest.webmanifest, service worker (shell-only), ícones — não iniciado. `vite-plugin-pwa` está instalado mas não configurado.
-- **Painel de qualidade dos dados** (seção 80): não implementado.
+## PENDENTE — próximas fases
+- **Restore de backup** (seção 95) e **Zona de perigo / zerar dados clínicos** (seções 96-97): não implementados.
 - **Importação CSV de planos** (seção 16, opcional): não implementada.
 - **Hardening final e revisão independente** (FASE 19, seção 132): ainda não realizada — IDOR/CSRF/XSS precisam de uma revisão dedicada antes do deploy real.
-- **Deploy HostGator real** (FASE 20): `DEPLOYMENT_HOSTGATOR.md` tem o roteiro; falta confirmar a estrutura exata do domínio/subpasta (ver nota abaixo) e executar.
+- **Deploy HostGator real** (FASE 20): `DEPLOYMENT_HOSTGATOR.md` tem o roteiro; falta confirmar a estrutura exata do domínio/subpasta (ver nota abaixo) e executar. Isso exige acesso real ao cPanel/hospedagem, que não está disponível neste ambiente de desenvolvimento.
 
-TESTES EXECUTADOS:
-- Backend: `php artisan test` (25 passando), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real.
-- Frontend: `npm run lint` (oxlint, 1 warning não bloqueante), `npm run build` (sucesso).
-- E2E manual assistido por Playwright headless: fluxo completo login → novo episódio → ações clínicas → encerramento → histórico, com screenshots e checagem de console/erros HTTP.
+TESTES EXECUTADOS: `php artisan test` (36 passando), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend, e os três fluxos Playwright descritos acima.
 TESTES APROVADOS: todos os executados acima.
 
 PROBLEMAS CONHECIDOS:
 - Ambiente de desenvolvimento não possui PHP/Composer nativos no PATH — usar sempre `C:\xampp\php\php.exe` e `C:\xampp\php\php.exe C:\xampp\php\composer.phar`.
-- No Windows, `npm run dev` do Vite só ficou acessível via `localhost` (IPv6 `::1`), não via `127.0.0.1` diretamente — sem impacto em produção (Linux/cPanel).
+- No Windows, `npm run dev`/`npm run preview` do Vite só ficaram acessíveis via `localhost` (IPv6 `::1`), não via `127.0.0.1` diretamente — sem impacto em produção (Linux/cPanel).
+- Pastas dentro do OneDrive às vezes ganham o atributo **ReadOnly** (efeito colateral inofensivo do OneDrive/Explorer, não uma permissão real), o que faz `is_writable()` do PHP mentir e quebra comandos do Laravel (aconteceu com `bootstrap/cache`). Se acontecer de novo: `attrib -R <pasta> /S /D` no PowerShell resolve. Sem relevância para produção.
 - **Atenção para o deploy**: `drfernandofreua.com.br/visitas` é uma subpasta, não a raiz do domínio. Se o document root do domínio não apontar diretamente para essa pasta, é necessário buildar o frontend com `VITE_BASE_PATH=/visitas/ npm run build` (já parametrizado em `vite.config.js` e `App.jsx`) — decidir isso durante a FASE 20 antes de gerar o build final.
 - Projeto está dentro de uma pasta sincronizada pelo OneDrive — considerar excluir `vendor/`, `node_modules/`, `equipe/data`/`equipe/backups` da sincronização.
 
 PRÓXIMO PASSO:
-- Dashboard de indicadores (endpoints de agregação + UI), depois exportação XLSX, PWA (manifest/service worker shell-only) e só então a revisão de segurança independente (seção 132) fim a fim antes de cogitar deploy real em produção.
+- Restore de backup + zona de perigo (zerar dados clínicos), depois a revisão de segurança independente (seção 132: rotas sem autenticação, IDOR, bypass de RBAC, CSRF, XSS, SQL injection, mass assignment, soft delete ignorado por queries, etc.) revisitando o código como se não tivesse sido eu quem o escreveu — e só então o roteiro de deploy real (FASE 20), que depende de acesso à hospedagem.

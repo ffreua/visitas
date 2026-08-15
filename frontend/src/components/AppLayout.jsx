@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import IosInstallHint from './IosInstallHint'
 
 export default function AppLayout() {
   const { user, logout } = useAuth()
@@ -47,6 +48,7 @@ export default function AppLayout() {
       )}
 
       <main className="main-content">
+        <IosInstallHint />
         <Outlet />
       </main>
     </div>

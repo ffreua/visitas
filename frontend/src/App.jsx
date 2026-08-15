@@ -14,6 +14,7 @@ import MedicalSpecialtiesAdminPage from './pages/admin/MedicalSpecialtiesAdminPa
 import TrashedAdminPage from './pages/admin/TrashedAdminPage'
 import DashboardAdminPage from './pages/admin/DashboardAdminPage'
 import ExportsAdminPage from './pages/admin/ExportsAdminPage'
+import OfflineBanner from './components/OfflineBanner'
 
 // import.meta.env.BASE_URL reflete o "base" do vite.config.js (ver
 // VITE_BASE_PATH ali) — mantém as rotas corretas caso o app seja servido
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <BrowserRouter basename={basename}>
       <AuthProvider>
+        <OfflineBanner />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 

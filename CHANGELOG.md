@@ -5,6 +5,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Dashboard de indicadores administrativos (volume, planos, interconsultas, tempo de internação, cobertura de visita, diagnósticos/concordância, reinternação, pendências, avaliações únicas, cobertura por médico, qualidade dos dados).
+- Exportação XLSX (Pacientes, Episodios, Diagnosticos, Visitas, Pendencias), identificável (reautenticação) ou pseudonimizada, entregue por rota autenticada e apagada após o download.
+- PWA: manifest, service worker (shell-only, nunca cacheia `/api/*`), ícones, hint de instalação iOS, aviso de offline.
 - Frontend React completo para o fluxo assistencial principal: login, troca de senha obrigatória, dashboard com filtros e busca, novo atendimento (busca por prontuário/cadastro/reinternação/bloqueio de episódio duplicado), detalhe do atendimento (visita diária, pendências, encerramento, avaliação única, exclusão), altas/histórico, e páginas admin (equipe, planos, especialidades, excluídos).
 - Endpoint `GET /api/physicians` para atribuição de responsável do dia.
 - Suporte a `VITE_BASE_PATH` para build em subpasta de domínio (produção fica em `drfernandofreua.com.br/visitas`).
