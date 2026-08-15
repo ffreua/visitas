@@ -1,0 +1,34 @@
+# Dados clínicos e segredos — nunca versionar
+equipe/data/*.sqlite3
+equipe/data/*.sqlite3-wal
+equipe/data/*.sqlite3-shm
+equipe/backups/*
+!equipe/backups/.gitkeep
+equipe/exports/*
+!equipe/exports/.gitkeep
+equipe/logs/*
+!equipe/logs/.gitkeep
+
+# Backend (Laravel) — vendor/.env já ignorados pelo .gitignore interno de equipe/app,
+# duplicado aqui por segurança caso alguém rode git fora daquele diretório.
+equipe/app/vendor/
+equipe/app/.env
+equipe/app/.env.*
+!equipe/app/.env.example
+equipe/app/storage/*.key
+equipe/app/storage/logs/*
+!equipe/app/storage/logs/.gitkeep
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Build compilado — gerado localmente e enviado direto ao servidor, não versionado
+public_html/build/
+public_html/assets/*
+!public_html/assets/.gitkeep
+
+# Diversos
+.DS_Store
+Thumbs.db
+*.log
