@@ -2,6 +2,18 @@
 
 Registro cronológico de decisões técnicas e etapas concluídas. Ordem: mais recente no topo.
 
+## 2026-08-15 — Frontend React (fluxo assistencial principal)
+
+- Sem framework de UI (Material/Tailwind/etc.) — CSS próprio mobile-first em `index.css`, seguindo a diretriz do PRD de visual limpo/hospitalar sem excesso de dependências.
+- Autenticação: `AuthContext` consome `/api/auth/me` no mount para restaurar sessão; `ProtectedRoute` decide entre login/troca de senha obrigatória/rota normal/admin-only puramente a partir do objeto `user` — nenhuma lógica de autorização real vive no frontend (é só UX; o backend já rejeita com 403/423 independentemente do que a UI decide mostrar).
+- Cliente axios usa `withXSRFToken: true` (Axios lê o cookie `XSRF-TOKEN` que o Laravel seta automaticamente em qualquer resposta do grupo `web`) — não precisa de Sanctum nem de um endpoint dedicado de "csrf-cookie".
+- **Decisão de arquitetura de dev**: Vite roda em porta separada do `php artisan serve`; configurado proxy `/api → 127.0.0.1:8000` em `vite.config.js` para o navegador enxergar tudo como mesma origem (senão cookie de sessão cross-origin não funcionaria em dev sem reconfigurar CORS/SameSite).
+- **Achado durante o teste E2E**: no Windows, o Vite dev server só ficou acessível via `localhost` (resolve para `::1`/IPv6), não via `127.0.0.1` diretamente — `curl http://127.0.0.1:5173` dava "connection refused" enquanto `curl http://localhost:5173` funcionava. Sem relevância para produção (Linux/cPanel), mas relevante para quem for rodar `npm run dev` localmente nesta máquina.
+- **Achado importante para o deploy**: a URL de produção é `drfernandofreua.com.br/visitas` — uma subpasta, não a raiz do domínio. Isso quebra os caminhos absolutos de assets do build do Vite (`/assets/...`) se o document root do domínio não apontar direto para essa pasta. Adicionado suporte a `VITE_BASE_PATH` (env var) em `vite.config.js` + `basename` correspondente no `BrowserRouter` (via `import.meta.env.BASE_URL`), para poder buildar com `VITE_BASE_PATH=/visitas/ npm run build` quando necessário — decisão real fica para a FASE 20, quando a estrutura exata do cPanel for confirmada.
+- Endpoint novo `GET /api/physicians` — necessário para a UI de "atribuir responsável do dia" (a gestão de equipe completa em `/api/admin/users` é admin-only, mas qualquer médico precisa poder ver a lista de colegas para atribuir/reatribuir o responsável).
+- **Teste E2E real no navegador** (não só `artisan test`): sem acesso a `chromium-cli` neste ambiente Windows, instalado Playwright isolado numa pasta de scratchpad (não como dependência do projeto) e escrito um script que sobe os dois servidores, dirige um Chromium headless em viewport 390×844 (mobile) pelo fluxo completo do PRD (login → troca de senha → novo paciente → novo episódio com autocomplete de CID → atribuir responsável → visita realizada → pendência → resolver pendência → encerrar acompanhamento → confirmar saída de ativos e entrada em histórico), capturando screenshot em cada etapa e checando console/respostas HTTP. Resultado: fluxo correto ponta a ponta, sem erros reais (os únicos "erros" HTTP capturados — 401 em `/auth/me` antes do login e 404 na busca de prontuário inexistente — são comportamento esperado, não bugs).
+- `npm run lint` (oxlint) limpo (1 warning de Fast Refresh, não bloqueante) e `npm run build` funcionando.
+
 ## 2026-08-15 — Backend FASES 2 a 10 (parcial 12/16)
 
 - **Users**: reescrita da migration padrão do Laravel para o schema do PRD (`uuid`, `full_name`, `crm`, `username`, `role`, `must_change_password`, `active`, `last_login_at`) — sem `email`, sem tabela `password_reset_tokens`/`sessions` no banco (`SESSION_DRIVER=file`, sem fluxo de reset por e-mail, admin reseta senha diretamente).

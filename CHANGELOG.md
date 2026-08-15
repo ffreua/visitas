@@ -5,6 +5,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Frontend React completo para o fluxo assistencial principal: login, troca de senha obrigatória, dashboard com filtros e busca, novo atendimento (busca por prontuário/cadastro/reinternação/bloqueio de episódio duplicado), detalhe do atendimento (visita diária, pendências, encerramento, avaliação única, exclusão), altas/histórico, e páginas admin (equipe, planos, especialidades, excluídos).
+- Endpoint `GET /api/physicians` para atribuição de responsável do dia.
+- Suporte a `VITE_BASE_PATH` para build em subpasta de domínio (produção fica em `drfernandofreua.com.br/visitas`).
+- Teste end-to-end via Playwright headless (mobile viewport) cobrindo o fluxo assistencial completo.
 - Estrutura inicial do repositório (equipe/app, equipe/data, equipe/backups, equipe/exports, equipe/logs, public_html).
 - Scaffold Laravel 12 em `equipe/app` (Laravel 11 fora do período de suporte de segurança em 2026).
 - Scaffold React + Vite em `frontend`, com react-router-dom, axios e vite-plugin-pwa.
