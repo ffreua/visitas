@@ -17,7 +17,16 @@ class UpdateAdmissionRequest extends FormRequest
         return [
             'version' => ['required', 'integer'],
 
-            'hospital_discharge_at' => ['nullable', 'date', 'after_or_equal:admission_at'],
+            // "admission_at" não é campo desta request (só existe no
+            // StoreAdmissionRequest) — after_or_equal:admission_at aqui
+            // seria sempre um no-op silencioso. Comparar contra o valor
+            // já persistido no episódio sendo editado.
+            'hospital_discharge_at' => ['nullable', 'date', function ($attribute, $value, $fail) {
+                $admission = $this->route('admission');
+                if ($admission && $value && strtotime($value) < strtotime($admission->admission_at)) {
+                    $fail('A alta hospitalar não pode ser anterior à data de entrada.');
+                }
+            }],
 
             'payer_type' => ['sometimes', Rule::in(['HEALTH_PLAN', 'PRIVATE'])],
             'health_plan_id' => [

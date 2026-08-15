@@ -7,9 +7,14 @@ use App\Models\User;
 
 class MedicalSpecialtyPolicy
 {
+    /**
+     * Listagem administrativa completa (inclusive inativos) — o
+     * autocomplete público (MedicalSpecialtyController::search) não passa
+     * por Policy nenhuma e continua aberto a qualquer médico autenticado.
+     */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->isAdmin();
     }
 
     public function create(User $user): bool

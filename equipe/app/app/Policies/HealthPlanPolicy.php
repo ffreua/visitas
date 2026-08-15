@@ -7,9 +7,15 @@ use App\Models\User;
 
 class HealthPlanPolicy
 {
+    /**
+     * Listagem administrativa completa (inclusive inativos) — não
+     * confundir com o autocomplete público (HealthPlanController::search),
+     * que não passa por Policy nenhuma e é aberto a qualquer médico
+     * autenticado de propósito.
+     */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->isAdmin();
     }
 
     public function create(User $user): bool

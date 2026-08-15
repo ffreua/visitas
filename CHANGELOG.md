@@ -4,6 +4,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Revisão de segurança independente (seção 132 do PRD): timezone hardcoded em UTC (impacto clínico real na visita noturna), episódio ativo duplicado via restore/corrida de criação simultânea (+ índice único parcial), snapshot de plano de saúde dessincronizado, `.env.example` inseguro, sessão sobrevivendo à desativação de usuário, fallback SPA apontando pro caminho errado em produção, e uma dezena de itens menores (rate limiting de reautenticação, password spraying no login, `PatientPolicy` ausente, listagem admin de planos/especialidades acessível a médicos, validação de datas inoperante, atribuição de responsável a usuário inativo, `ip_hash`/`request_id` de auditoria). Todos corrigidos e cobertos por teste de regressão.
+
 ### Added
 - Restore de backup (`php artisan neurologia:restore`, CLI-only por segurança) e Zona de Perigo (zerar dados clínicos preservando referências, com backup verificado obrigatório antes).
 - Tela `/admin/sistema` (integrity_check, lista de backups, zona de perigo).

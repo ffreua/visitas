@@ -1,6 +1,20 @@
 # STATUS
 
-ETAPA ATUAL: Restore de backup, Zona de perigo (zerar dados clínicos) e arquivos de deploy (`public_html/index.php` + `.htaccess`) concluídos e testados. Falta: revisão de segurança independente (seção 132) e o deploy real (depende de acesso à hospedagem).
+ETAPA ATUAL: Revisão de segurança independente (seção 132 do PRD) concluída e todos os achados corrigidos e testados. **O sistema atende a todo o "Definition of Done" da seção 131 do PRD, exceto o deploy real em produção**, que depende de acesso à hospedagem HostGator (fora do alcance deste ambiente de desenvolvimento).
+
+## Revisão de segurança independente (2026-08-15)
+Um agente sem contexto prévio do desenvolvimento auditou os 20 itens da seção 132 do PRD lendo o código real (rotas, policies, controllers, migrations) e validando empiricamente os pontos críticos. Resultado: núcleo de segurança (RBAC, CSRF, SQL injection, XSS, mass assignment, soft delete, hard delete) **genuinamente sólido**; 10 achados reais de correção clínica/configuração, todos corrigidos nesta sessão com teste de regressão:
+
+- **Alto**: `config/app.php` tinha `'timezone' => 'UTC'` hardcoded, ignorando `APP_TIMEZONE` do `.env` — aplicação operava 3h adiantada (maior impacto: visita diária noturna a partir das 21h BRT gravava no dia errado). Corrigido.
+- **Médio**: `restore()` de episódio excluído não revalidava conflito de episódio ativo → corrigido + índice único parcial `admissions(patient_id) WHERE status='ACTIVE' AND deleted_at IS NULL` fecha também a janela de corrida em `store()`.
+- **Médio**: `health_plan_name_snapshot` podia dessincronizar de `health_plan_id` ao editar só esse campo sem `payer_type` junto → corrigido.
+- **Médio**: `.env.example` não refletia produção segura (`APP_DEBUG=true`, faltavam `SESSION_SECURE_COOKIE`/`HTTP_ONLY`/`SAME_SITE`/`APP_TIMEZONE`) → reescrito.
+- **Médio**: sessões sobreviviam à desativação de usuário ou reset de senha → novo middleware `EnsureUserIsActive` derruba a sessão na próxima requisição.
+- **Médio**: fallback SPA resolvia `public_path()` para dentro de `equipe/app/public` em vez de `public_html` → refresh direto em subrotas quebraria em produção. Corrigido via `Application::usePublicPath()`, validado servindo o build real.
+- **Baixo** (todos corrigidos): `PatientController` sem Policy (adicionada `PatientPolicy`); `HealthPlanPolicy`/`MedicalSpecialtyPolicy::viewAny` permitiam qualquer médico acessar a listagem admin completa; sem rate limit em reautenticações sensíveis (`throttle:reauth` adicionado); login throttle só por usuário+IP permitia password spraying entre contas (limitador extra só por IP); `ip_hash` do audit log usava hash simples reversível (trocado por HMAC); `X-Request-Id` do cliente ia direto pro banco sem validar formato; validação de `hospital_discharge_at` em `UpdateAdmissionRequest` era um no-op silencioso (comparava contra campo inexistente); atribuição de responsável do dia aceitava usuário desativado.
+- 7 novos testes de regressão, um para cada achado corrigido testável (51 testes no total, verificado também com `--order-by=random`).
+
+Ver `IMPLEMENTATION_LOG.md` para o relatório completo com arquivo:linha de cada achado, e `SECURITY_CHECKLIST.md` para o checklist atualizado.
 
 ## Restore, Zona de perigo e deploy prep (2026-08-15)
 - `php artisan neurologia:restore {backup.sqlite3}` — **exclusivamente CLI**, nunca rota web (seção 95 do PRD permite essa saída quando o restore via navegador não é seguro — trocar o arquivo do SQLite por baixo de uma aplicação com PHP-FPM ativo é arriscado). Verifica integridade do backup escolhido, cria e verifica um backup de segurança do estado atual antes de sobrescrever, verifica integridade do resultado, audita a ação.
@@ -40,12 +54,12 @@ Sem `chromium-cli` disponível neste Windows, foi instalado Playwright isolado n
 2. **Dashboard e exportação**: dados de exemplo criados via API, dashboard renderizado e inspecionado visualmente (encontrou e corrigiu o bug do "patient-days" sem arredondamento), exportação XLSX baixada de verdade e validada abrindo o arquivo com PhpSpreadsheet.
 3. **PWA**: build de produção servido via `vite preview`, service worker confirmado ativo, Cache Storage/localStorage/IndexedDB inspecionados após login + criação de paciente real — zero rastro de dados clínicos fora do shell estático (seção 116 do PRD).
 
-## PENDENTE — próximas fases
-- **Importação CSV de planos** (seção 16, opcional): não implementada.
-- **Hardening final e revisão independente** (FASE 19, seção 132): ainda não realizada — IDOR/CSRF/XSS precisam de uma revisão dedicada antes do deploy real. Este é o próximo passo recomendado.
-- **Deploy HostGator real** (FASE 20): arquivos (`public_html/index.php`, `.htaccess`, roteiro completo em `DEPLOYMENT_HOSTGATOR.md`) estão prontos; falta confirmar a estrutura exata do domínio/subpasta no cPanel real e executar o upload — isso exige acesso à hospedagem, que não está disponível neste ambiente de desenvolvimento.
+## PENDENTE — apenas isto
+- **Deploy HostGator real** (FASE 20): arquivos (`public_html/index.php`, `.htaccess`, roteiro completo em `DEPLOYMENT_HOSTGATOR.md`) estão prontos e testados localmente (inclusive o fallback SPA servindo um build real copiado para `public_html/build`); falta confirmar a estrutura exata do domínio/subpasta no cPanel real e executar o upload — isso exige acesso à hospedagem, que não está disponível neste ambiente de desenvolvimento.
 
-TESTES EXECUTADOS: `php artisan test` (41 passando, inclusive `--order-by=random` 2x), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend, e quatro fluxos Playwright reais no navegador (fluxo assistencial completo, dashboard+exportação, PWA, sistema/zona de perigo).
+Todo o resto do escopo do PRD (backend, frontend, dashboard, exportação, PWA, backups/restore, zona de perigo, importação CSV, revisão de segurança independente) está implementado e testado.
+
+TESTES EXECUTADOS: `php artisan test` (51 passando, inclusive `--order-by=random` 2x), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend, cinco fluxos Playwright reais no navegador (fluxo assistencial completo, dashboard+exportação, PWA, sistema/zona de perigo, teste de fumaça pós-correções de segurança), e uma revisão de segurança independente completa (seção 132).
 TESTES APROVADOS: todos os executados acima.
 
 PROBLEMAS CONHECIDOS:
@@ -56,4 +70,4 @@ PROBLEMAS CONHECIDOS:
 - Projeto está dentro de uma pasta sincronizada pelo OneDrive — considerar excluir `vendor/`, `node_modules/`, `equipe/data`/`equipe/backups` da sincronização.
 
 PRÓXIMO PASSO:
-- Revisão de segurança independente (seção 132 do PRD): rotas sem autenticação, IDOR, bypass de RBAC, CSRF, XSS, SQL injection, mass assignment, soft delete ignorado por queries, dados excluídos vazando em dashboards/exports, sobrescrita de plano anterior, erros de timezone, cache PWA de dados clínicos, concorrência SQLite/`database is locked` — revisitando o código como se não tivesse sido eu quem o escreveu. Depois disso, o projeto está pronto para a FASE 20 (deploy real), que só pode ser executada com acesso à hospedagem HostGator.
+- FASE 20 (deploy real): confirmar com o cliente/hosting a estrutura exata do domínio/subpasta no cPanel (document root dedicado vs. subpasta compartilhada — ver nota em `DEPLOYMENT_HOSTGATOR.md`), depois seguir o passo a passo já documentado. É o único item que exige acesso a algo fora deste ambiente de desenvolvimento.

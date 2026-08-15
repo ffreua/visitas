@@ -22,13 +22,35 @@ class AuditLogger
             'entity_type' => $entityType,
             'entity_id' => (string) $entityId,
             'changed_fields' => array_values($changedFields) ?: null,
-            'request_id' => Request::header('X-Request-Id') ?? (string) Str::uuid(),
-            'ip_hash' => Request::ip() ? hash('sha256', Request::ip()) : null,
+            'request_id' => static::resolveRequestId(),
+            'ip_hash' => Request::ip() ? static::hashIp(Request::ip()) : null,
         ]);
     }
 
     public static function logModel(string $action, Model $model, array $changedFields = []): AuditLog
     {
         return static::log($action, class_basename($model), $model->getKey(), $changedFields);
+    }
+
+    /**
+     * O header X-Request-Id vem do cliente sem nenhuma garantia de formato
+     * — nunca gravar direto na trilha de auditoria (alguém poderia forjar
+     * o request_id de outra operação pra confundir uma investigação depois).
+     * Só aceita se já for um UUID válido; caso contrário gera um novo.
+     */
+    private static function resolveRequestId(): string
+    {
+        $clientValue = Request::header('X-Request-Id');
+
+        return $clientValue && Str::isUuid($clientValue) ? $clientValue : (string) Str::uuid();
+    }
+
+    /**
+     * hash() simples de um IPv4 é reversível em minutos via rainbow table
+     * (só 2^32 combinações) — HMAC com a APP_KEY como segredo evita isso.
+     */
+    private static function hashIp(string $ip): string
+    {
+        return hash_hmac('sha256', $ip, config('app.key'));
     }
 }

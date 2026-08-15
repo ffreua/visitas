@@ -27,7 +27,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/system/integrity-check', [SystemController::class, 'integrityCheck'])->name('system.integrity-check');
     Route::get('/system/backups', [SystemController::class, 'backups'])->name('system.backups');
-    Route::post('/system/reset-clinical-data', [SystemController::class, 'resetClinicalData'])->name('system.reset-clinical-data');
+    Route::post('/system/reset-clinical-data', [SystemController::class, 'resetClinicalData'])
+        ->middleware('throttle:reauth')->name('system.reset-clinical-data');
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/data-quality', [DashboardController::class, 'dataQuality'])->name('dashboard.data-quality');

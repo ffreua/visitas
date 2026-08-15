@@ -20,7 +20,7 @@ Route::prefix('api')->name('api.')->group(function () {
         ->middleware('throttle:login')
         ->name('auth.login');
 
-    Route::middleware('auth')->group(function () {
+    Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');

@@ -7,6 +7,7 @@ use App\Models\DailyRound;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class DailyRoundController extends Controller
 {
@@ -32,7 +33,7 @@ class DailyRoundController extends Controller
         $this->authorize('update', $admission);
 
         $data = $request->validate([
-            'assigned_physician_id' => ['required', 'integer', 'exists:users,id'],
+            'assigned_physician_id' => ['required', 'integer', Rule::exists('users', 'id')->where('active', true)],
         ]);
 
         $round = $this->todaysRound($admission);

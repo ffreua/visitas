@@ -151,4 +151,103 @@ class PatientAdmissionTest extends TestCase
             'health_plan_id' => $plan->id,
         ]))->assertStatus(422);
     }
+
+    /**
+     * Regressão (achado da revisão de segurança independente): restaurar um
+     * episódio excluído não revalidava se o paciente já tinha outro episódio
+     * ACTIVE — permitindo dois episódios ativos simultâneos para o mesmo
+     * paciente (excluir A por engano, criar B, admin restaura A).
+     */
+    public function test_restore_is_blocked_when_patient_already_has_another_active_admission(): void
+    {
+        $physician = User::factory()->create();
+        $this->actingAs($physician);
+
+        $patient = Patient::create([
+            'medical_record_number' => '555666',
+            'full_name' => 'Paciente Conflito',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $first = $this->postJson('/api/admissions', $this->baseAdmissionPayload(['patient_id' => $patient->id]))
+            ->assertCreated()->json();
+
+        $this->deleteJson("/api/admissions/{$first['id']}", ['reason' => 'CREATED_BY_MISTAKE'])->assertOk();
+
+        $second = $this->postJson('/api/admissions', $this->baseAdmissionPayload(['patient_id' => $patient->id]))
+            ->assertCreated()->json();
+
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+
+        $this->postJson("/api/admissions/{$first['id']}/restore")->assertStatus(422);
+
+        // O segundo episódio continua sendo o único ativo.
+        $this->assertSame(1, $patient->admissions()->active()->count());
+        $this->assertSame($second['id'], $patient->admissions()->active()->first()->id);
+    }
+
+    /**
+     * Regressão: editar um episódio enviando só health_plan_id (sem
+     * reenviar payer_type junto) deixava health_plan_id apontando pro plano
+     * novo mas health_plan_name_snapshot preso no nome do plano antigo —
+     * dashboard e exportação usam o snapshot preferencialmente.
+     */
+    public function test_updating_health_plan_id_alone_recalculates_snapshot(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $planA = HealthPlan::create(['name' => 'Plano A', 'normalized_name' => 'plano a', 'active' => true]);
+        $planB = HealthPlan::create(['name' => 'Plano B', 'normalized_name' => 'plano b', 'active' => true]);
+
+        $patient = Patient::create([
+            'medical_record_number' => '777888',
+            'full_name' => 'Paciente Snapshot',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+            'payer_type' => 'HEALTH_PLAN',
+            'health_plan_id' => $planA->id,
+        ]))->assertCreated()->json();
+
+        $this->assertSame('Plano A', $admission['health_plan_name_snapshot']);
+
+        // Só health_plan_id, sem payer_type junto.
+        $updated = $this->putJson("/api/admissions/{$admission['id']}", [
+            'version' => $admission['version'],
+            'health_plan_id' => $planB->id,
+        ])->assertOk()->json();
+
+        $this->assertSame($planB->id, $updated['health_plan_id']);
+        $this->assertSame('Plano B', $updated['health_plan_name_snapshot']);
+    }
+
+    /**
+     * Regressão: a regra after_or_equal:admission_at em UpdateAdmissionRequest
+     * comparava contra um campo inexistente na request (admission_at só
+     * existe em StoreAdmissionRequest), virando um no-op silencioso que
+     * permitia gravar alta hospitalar anterior à entrada.
+     */
+    public function test_hospital_discharge_at_cannot_be_before_admission_at_on_update(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = Patient::create([
+            'medical_record_number' => '999111',
+            'full_name' => 'Paciente Datas',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+            'admission_at' => '2026-08-10 10:00:00',
+        ]))->assertCreated()->json();
+
+        $this->putJson("/api/admissions/{$admission['id']}", [
+            'version' => $admission['version'],
+            'hospital_discharge_at' => '1990-01-01 00:00:00',
+        ])->assertStatus(422);
+    }
 }

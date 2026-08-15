@@ -96,4 +96,37 @@ class AuthTest extends TestCase
 
         $this->getJson('/api/admin/users')->assertOk();
     }
+
+    /**
+     * Regressão: HealthPlanPolicy/MedicalSpecialtyPolicy::viewAny retornavam
+     * true para qualquer usuário, então as rotas admin.health-plans.index e
+     * admin.medical-specialties.index (listagem completa, inclusive
+     * inativos) ficavam acessíveis a PHYSICIAN apesar de estarem sob /admin.
+     */
+    public function test_physician_cannot_list_all_health_plans_or_specialties_via_admin_routes(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->getJson('/api/admin/health-plans')->assertForbidden();
+        $this->getJson('/api/admin/medical-specialties')->assertForbidden();
+    }
+
+    /**
+     * Regressão: desativar um usuário não derrubava sessões já
+     * autenticadas — o guard de sessão nunca revalidava `active` depois do
+     * login. Sem o middleware "active", este teste falharia com 200/423 em
+     * vez de 401.
+     */
+    public function test_deactivating_user_kills_their_live_session_immediately(): void
+    {
+        $physician = User::factory()->create();
+        $this->actingAs($physician);
+
+        $this->getJson('/api/patients/lookup?medical_record_number=1')->assertStatus(404);
+
+        $physician->update(['active' => false]);
+
+        $this->getJson('/api/patients/lookup?medical_record_number=1')->assertStatus(401);
+        $this->assertGuest();
+    }
 }

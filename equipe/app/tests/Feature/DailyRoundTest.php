@@ -79,4 +79,27 @@ class DailyRoundTest extends TestCase
         $detailFinal = $this->getJson("/api/admissions/{$admission['id']}")->json();
         $this->assertCount(2, $detailFinal['daily_rounds']);
     }
+
+    /**
+     * Regressão: assign() validava só exists:users,id, aceitando atribuir o
+     * responsável do dia a um usuário desativado.
+     */
+    public function test_cannot_assign_inactive_user_as_responsible(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        CID10::create(['code' => 'G40.9', 'description' => 'Epilepsia', 'category' => 'G40', 'normalized_description' => 'epilepsia']);
+        $patient = Patient::create(['medical_record_number' => '222111', 'full_name' => 'Paciente', 'date_of_birth' => '1990-01-01']);
+        $inactive = User::factory()->create(['active' => false]);
+
+        $admission = $this->postJson('/api/admissions', [
+            'patient_id' => $patient->id, 'admission_at' => now()->toDateTimeString(),
+            'care_type' => 'INSTITUTIONAL', 'followup_mode' => 'ONGOING', 'payer_type' => 'PRIVATE',
+            'suspected_cid_code' => 'G40.9',
+        ])->assertCreated()->json();
+
+        $this->postJson("/api/admissions/{$admission['id']}/rounds/assign", [
+            'assigned_physician_id' => $inactive->id,
+        ])->assertStatus(422);
+    }
 }

@@ -12,6 +12,7 @@ use App\Models\AdmissionDiagnosis;
 use App\Models\CID10;
 use App\Models\HealthPlan;
 use App\Services\AuditLogger;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,8 @@ use Illuminate\Validation\ValidationException;
 class AdmissionController extends Controller
 {
     private const EAGER = ['patient', 'healthPlan', 'requestingSpecialty', 'diagnoses', 'pendingItems', 'dailyRounds'];
+
+    private const ACTIVE_ADMISSION_CONFLICT_MESSAGE = 'Este paciente já possui acompanhamento ativo.';
 
     public function index(Request $request)
     {
@@ -97,37 +100,48 @@ class AdmissionController extends Controller
 
         $data = $request->validated();
 
-        if (Admission::where('patient_id', $data['patient_id'])->active()->exists()) {
+        try {
+            $admission = DB::transaction(function () use ($data) {
+                // Checagem dentro da transação (não antes dela) para que a
+                // janela entre o SELECT e o INSERT fique protegida pela
+                // serialização de escritas do SQLite — mas o índice único
+                // parcial em admissions(patient_id) WHERE ACTIVE é quem
+                // garante isso de verdade, mesmo sob busy_timeout/retry.
+                if (Admission::where('patient_id', $data['patient_id'])->active()->exists()) {
+                    throw ValidationException::withMessages([
+                        'patient_id' => self::ACTIVE_ADMISSION_CONFLICT_MESSAGE,
+                    ]);
+                }
+
+                $healthPlanSnapshot = null;
+                if ($data['payer_type'] === 'HEALTH_PLAN') {
+                    $healthPlanSnapshot = HealthPlan::findOrFail($data['health_plan_id'])->name;
+                }
+
+                $admission = Admission::create([
+                    ...collect($data)->except('suspected_cid_code')->toArray(),
+                    'health_plan_name_snapshot' => $healthPlanSnapshot,
+                    'created_by' => Auth::id(),
+                ]);
+
+                $cid = CID10::findOrFail($data['suspected_cid_code']);
+
+                AdmissionDiagnosis::create([
+                    'admission_id' => $admission->id,
+                    'phase' => 'SUSPECTED',
+                    'cid_code' => $cid->code,
+                    'description_snapshot' => $cid->description,
+                    'is_primary' => true,
+                    'created_by' => Auth::id(),
+                ]);
+
+                return $admission;
+            });
+        } catch (UniqueConstraintViolationException) {
             throw ValidationException::withMessages([
-                'patient_id' => 'Este paciente já possui acompanhamento ativo.',
+                'patient_id' => self::ACTIVE_ADMISSION_CONFLICT_MESSAGE,
             ]);
         }
-
-        $admission = DB::transaction(function () use ($data) {
-            $healthPlanSnapshot = null;
-            if ($data['payer_type'] === 'HEALTH_PLAN') {
-                $healthPlanSnapshot = HealthPlan::findOrFail($data['health_plan_id'])->name;
-            }
-
-            $admission = Admission::create([
-                ...collect($data)->except('suspected_cid_code')->toArray(),
-                'health_plan_name_snapshot' => $healthPlanSnapshot,
-                'created_by' => Auth::id(),
-            ]);
-
-            $cid = CID10::findOrFail($data['suspected_cid_code']);
-
-            AdmissionDiagnosis::create([
-                'admission_id' => $admission->id,
-                'phase' => 'SUSPECTED',
-                'cid_code' => $cid->code,
-                'description_snapshot' => $cid->description,
-                'is_primary' => true,
-                'created_by' => Auth::id(),
-            ]);
-
-            return $admission;
-        });
 
         // Recarrega para trazer colunas com default definido só no banco
         // (version) e nulas nunca atribuídas em memória (evita chaves
@@ -148,8 +162,15 @@ class AdmissionController extends Controller
 
         $changed = collect($data)->except('version')->keys()->values()->toArray();
 
-        if (($data['payer_type'] ?? null) === 'HEALTH_PLAN') {
-            $data['health_plan_name_snapshot'] = HealthPlan::findOrFail($data['health_plan_id'])->name;
+        // O snapshot precisa acompanhar health_plan_id mesmo quando o
+        // cliente manda só esse campo sem reenviar payer_type junto —
+        // senão o episódio fica com health_plan_id novo mas o snapshot
+        // (usado preferencialmente no dashboard e na exportação) continua
+        // apontando pro plano antigo.
+        if (array_key_exists('health_plan_id', $data)) {
+            $data['health_plan_name_snapshot'] = $data['health_plan_id']
+                ? HealthPlan::findOrFail($data['health_plan_id'])->name
+                : null;
         } elseif (($data['payer_type'] ?? null) === 'PRIVATE') {
             $data['health_plan_name_snapshot'] = null;
         }
@@ -252,10 +273,29 @@ class AdmissionController extends Controller
     {
         $this->authorize('restore', $trashedAdmission);
 
-        $trashedAdmission->restore();
-        $trashedAdmission->deleted_by = null;
-        $trashedAdmission->deletion_reason = null;
-        $trashedAdmission->save();
+        try {
+            DB::transaction(function () use ($trashedAdmission) {
+                // Sem isso, restaurar um episódio excluído poderia deixar o
+                // paciente com dois episódios ACTIVE ao mesmo tempo (ex.:
+                // médico excluiu o episódio A por engano, criou o B, e só
+                // depois o admin restaura A pela tela de excluídos).
+                if ($trashedAdmission->status === 'ACTIVE'
+                    && Admission::where('patient_id', $trashedAdmission->patient_id)->active()->exists()) {
+                    throw ValidationException::withMessages([
+                        'patient_id' => self::ACTIVE_ADMISSION_CONFLICT_MESSAGE.' Encerre ou exclua o episódio atual antes de restaurar este.',
+                    ]);
+                }
+
+                $trashedAdmission->restore();
+                $trashedAdmission->deleted_by = null;
+                $trashedAdmission->deletion_reason = null;
+                $trashedAdmission->save();
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'patient_id' => self::ACTIVE_ADMISSION_CONFLICT_MESSAGE.' Encerre ou exclua o episódio atual antes de restaurar este.',
+            ]);
+        }
 
         AuditLogger::logModel('RESTORE', $trashedAdmission);
 

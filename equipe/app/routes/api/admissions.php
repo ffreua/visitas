@@ -28,4 +28,4 @@ Route::post('/admissions/{admission}/rounds/complete', [DailyRoundController::cl
 Route::post('/admissions/{trashedAdmission}/restore', [AdmissionController::class, 'restore'])
     ->name('admissions.restore')->withTrashed();
 Route::delete('/admissions/{trashedAdmission}/force', [AdmissionController::class, 'forceDestroy'])
-    ->name('admissions.force-destroy')->withTrashed();
+    ->middleware('throttle:reauth')->name('admissions.force-destroy')->withTrashed();

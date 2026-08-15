@@ -32,3 +32,6 @@ public_html/assets/*
 .DS_Store
 Thumbs.db
 *.log
+
+# Arquivos internos do Claude Code (locks de sessão, etc.) — nunca versionar
+.claude/

@@ -16,6 +16,8 @@ class PatientController extends Controller
      */
     public function lookup(Request $request)
     {
+        $this->authorize('viewAny', Patient::class);
+
         $request->validate(['medical_record_number' => ['required', 'string']]);
 
         $normalized = Patient::normalizeMedicalRecordNumber($request->string('medical_record_number'));
@@ -40,6 +42,8 @@ class PatientController extends Controller
 
     public function store(StorePatientRequest $request)
     {
+        $this->authorize('create', Patient::class);
+
         $normalized = Patient::normalizeMedicalRecordNumber($request->string('medical_record_number'));
 
         if (Patient::where('medical_record_number', $normalized)->exists()) {
@@ -57,6 +61,8 @@ class PatientController extends Controller
 
     public function history(Patient $patient)
     {
+        $this->authorize('view', $patient);
+
         $admissions = $patient->admissions()
             ->with(['healthPlan', 'requestingSpecialty', 'diagnoses'])
             ->orderByDesc('admission_at')
