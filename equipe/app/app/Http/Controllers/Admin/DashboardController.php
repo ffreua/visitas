@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\DashboardFilterRequest;
 use App\Models\Admission;
 use App\Models\User;
+use App\Services\AdmissionFilters;
 use App\Services\Percentiles;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
@@ -24,8 +24,7 @@ class DashboardController extends Controller
         $filters = $request->validated();
         $includeDeleted = (bool) ($filters['include_deleted'] ?? false);
 
-        $base = $this->filteredQuery($filters, $includeDeleted);
-        $admissions = $base->get();
+        $admissions = AdmissionFilters::query($filters, $includeDeleted)->get();
 
         return response()->json([
             'filters_applied' => $filters,
@@ -73,36 +72,6 @@ class DashboardController extends Controller
             'single_evaluations_open_over_3_days' => $oldOpenSingleEval->count(),
             'pending_items_open_over_14_days' => $oldPendingItems->count(),
         ]);
-    }
-
-    private function filteredQuery(array $filters, bool $includeDeleted): Builder
-    {
-        $query = Admission::query()->with(['patient', 'healthPlan', 'requestingSpecialty', 'diagnoses', 'pendingItems', 'dailyRounds']);
-
-        if ($includeDeleted) {
-            $query->withTrashed();
-        }
-
-        if (! empty($filters['date_from'])) {
-            $query->whereDate('admission_at', '>=', $filters['date_from']);
-        }
-        if (! empty($filters['date_to'])) {
-            $query->whereDate('admission_at', '<=', $filters['date_to']);
-        }
-        foreach (['care_type', 'followup_mode', 'payer_type', 'health_plan_id', 'requesting_specialty_id'] as $field) {
-            if (! empty($filters[$field])) {
-                $query->where($field, $filters[$field]);
-            }
-        }
-        if (! empty($filters['physician_id'])) {
-            $query->whereHas('dailyRounds', fn ($q) => $q->where('assigned_physician_id', $filters['physician_id'])
-                ->orWhere('completed_by', $filters['physician_id']));
-        }
-        if (! empty($filters['cid_code'])) {
-            $query->whereHas('diagnoses', fn ($q) => $q->where('cid_code', $filters['cid_code']));
-        }
-
-        return $query;
     }
 
     private function volume($admissions): array

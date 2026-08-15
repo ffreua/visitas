@@ -33,6 +33,7 @@ export default function AppLayout() {
               <>
                 <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--color-border)' }} />
                 <Link to="/admin/dashboard" onClick={() => setMenuOpen(false)}>Administração — Dashboard</Link>
+                <Link to="/admin/exportacoes" onClick={() => setMenuOpen(false)}>Administração — Exportações</Link>
                 <Link to="/admin/equipe" onClick={() => setMenuOpen(false)}>Administração — Equipe</Link>
                 <Link to="/admin/planos" onClick={() => setMenuOpen(false)}>Administração — Planos de saúde</Link>
                 <Link to="/admin/especialidades" onClick={() => setMenuOpen(false)}>Administração — Especialidades</Link>

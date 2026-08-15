@@ -1,6 +1,19 @@
 # STATUS
 
-ETAPA ATUAL: Dashboard de indicadores (FASE 14) concluído, backend + frontend, testado. Faltam: exportação XLSX, PWA, restore de backup/zona de perigo, hardening final e deploy.
+ETAPA ATUAL: Exportação XLSX (FASE 15) concluída, backend + frontend, testado. Faltam: PWA, restore de backup/zona de perigo, hardening final e deploy.
+
+## Exportação XLSX (2026-08-15)
+- `POST /api/admin/exports` (filtros de período/tipo/modalidade/pagamento/plano/especialidade/médico/CID/status + `pseudonymized`) gera um workbook com abas Pacientes, Episodios, Diagnosticos, Visitas, Pendencias (`App\Services\AdmissionExportService`, PhpSpreadsheet).
+- Export identificável exige reautenticação por senha (403 se incorreta); export pseudonimizado troca nome/prontuário por `PAC-00001` e não exige senha.
+- Arquivo gerado fora de `public_html` (`equipe/exports`), entregue só por `GET /api/admin/exports/{token}/download` (admin-only, valida `basename()` contra path traversal, 404 se não for `.xlsx` existente) e apagado logo após o download (`deleteFileAfterSend`) — comportamento confirmado tanto em teste automatizado (disparando `sendContent()` manualmente, já que o cliente de teste do Laravel não passa pelo ciclo real de `->send()`) quanto num download real via navegador.
+- `AuditLogger` registra a ação EXPORT com admin, filtros aplicados (só os nomes, não os dados), quantidade de linhas e se foi pseudonimizado (seção 88).
+- Comando `exports:cleanup` (backstop para exports gerados e nunca baixados) + `neurologia:backup` agendados via `routes/console.php` (`Schedule::command`) — só rodam de fato se o cPanel tiver Cron Job chamando `php artisan schedule:run` a cada minuto; a aplicação funciona igual sem cron.
+- Lógica de filtro compartilhada entre dashboard e exportação extraída para `App\Services\AdmissionFilters` (evita as duas features divergirem silenciosamente sobre o que "período X, médico Y" significa).
+- Tela `/admin/exportacoes` no frontend, testada com download real via Playwright (arquivo `.xlsx` validado abrindo com PhpSpreadsheet).
+- 5 novos testes de feature (`ExportTest`) — 36 testes no total, todos passando.
+
+## Nota importante sobre o ambiente Windows de desenvolvimento
+Pastas dentro do OneDrive às vezes ganham o atributo **ReadOnly** (efeito colateral inofensivo do OneDrive/Explorer, não uma permissão real), mas isso faz `is_writable()` do PHP mentir e quebra comandos do Laravel com erro "diretório deve existir e ser gravável" (aconteceu com `bootstrap/cache`). Se isso acontecer de novo: `attrib -R <pasta> /S /D` no PowerShell resolve. Sem relevância para produção (Linux/cPanel).
 
 ## Dashboard de indicadores (2026-08-15)
 - `GET /api/admin/dashboard` (filtros: período, tipo de atendimento, modalidade, pagamento, plano, especialidade, médico, CID, incluir excluídos) e `GET /api/admin/dashboard/data-quality` — cobrem volume, particular×plano, interconsultas, tempo de internação (hospitalar × Neurologia, nunca misturados), cobertura de visita diária, diagnósticos (top + concordância hipótese→final), reinternação (7/30 dias), pendências, avaliações únicas, cobertura operacional por médico (sem ranking) e painel de qualidade dos dados (seção 80).
@@ -27,7 +40,6 @@ ETAPAS CONCLUÍDAS:
 Executado o fluxo completo: login com `admin`/`senha@1234` → troca de senha obrigatória → dashboard → novo atendimento com prontuário inexistente → cadastro de paciente → formulário de episódio (Institucional/Acompanhamento/Particular + autocomplete de CID) → detalhe do atendimento → atribuir responsável → marcar visita realizada → criar pendência → resolver pendência → encerrar acompanhamento com diagnóstico final → confirmar que o caso sai da lista de ativos e aparece em Altas/Histórico. Sem erros de console além dos esperados (401 antes do login, 404 na busca de prontuário inexistente — comportamento correto). Screenshots confirmam layout mobile correto em cada etapa.
 
 ## PENDENTE (não iniciado ou parcial) — próximas fases
-- **Exportação XLSX** (FASE 15, seções 81-88): não iniciada.
 - **Restore de backup** (seção 95) e **Zona de perigo / zerar dados** (seções 96-97): não implementados.
 - **PWA** (FASE 17): manifest.webmanifest, service worker (shell-only), ícones — não iniciado. `vite-plugin-pwa` está instalado mas não configurado.
 - **Painel de qualidade dos dados** (seção 80): não implementado.

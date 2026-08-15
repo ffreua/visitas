@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\HealthPlanController;
@@ -27,4 +28,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/data-quality', [DashboardController::class, 'dataQuality'])->name('dashboard.data-quality');
+
+    Route::post('/exports', [ExportController::class, 'store'])->middleware('throttle:exports')->name('exports.store');
+    Route::get('/exports/{token}/download', [ExportController::class, 'download'])->name('exports.download');
 });
