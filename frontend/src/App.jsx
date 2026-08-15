@@ -12,6 +12,7 @@ import UsersAdminPage from './pages/admin/UsersAdminPage'
 import HealthPlansAdminPage from './pages/admin/HealthPlansAdminPage'
 import MedicalSpecialtiesAdminPage from './pages/admin/MedicalSpecialtiesAdminPage'
 import TrashedAdminPage from './pages/admin/TrashedAdminPage'
+import DashboardAdminPage from './pages/admin/DashboardAdminPage'
 
 // import.meta.env.BASE_URL reflete o "base" do vite.config.js (ver
 // VITE_BASE_PATH ali) — mantém as rotas corretas caso o app seja servido
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/atendimentos/:id" element={<AdmissionDetailPage />} />
 
               <Route element={<ProtectedRoute adminOnly />}>
+                <Route path="/admin/dashboard" element={<DashboardAdminPage />} />
                 <Route path="/admin/equipe" element={<UsersAdminPage />} />
                 <Route path="/admin/planos" element={<HealthPlansAdminPage />} />
                 <Route path="/admin/especialidades" element={<MedicalSpecialtiesAdminPage />} />

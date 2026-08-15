@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\HealthPlanController;
@@ -23,4 +24,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::put('/medical-specialties/{medicalSpecialty}', [MedicalSpecialtyController::class, 'update'])->name('medical-specialties.update');
 
     Route::get('/system/integrity-check', [SystemController::class, 'integrityCheck'])->name('system.integrity-check');
+
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+    Route::get('/dashboard/data-quality', [DashboardController::class, 'dataQuality'])->name('dashboard.data-quality');
 });

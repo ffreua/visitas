@@ -1,6 +1,13 @@
 # STATUS
 
-ETAPA ATUAL: Frontend React — fluxo assistencial principal (mobile-first) construído e testado ponta a ponta no navegador. Faltam: dashboard de indicadores, exportação XLSX, PWA, admin de excluídos com detalhe completo, hardening final e deploy.
+ETAPA ATUAL: Dashboard de indicadores (FASE 14) concluído, backend + frontend, testado. Faltam: exportação XLSX, PWA, restore de backup/zona de perigo, hardening final e deploy.
+
+## Dashboard de indicadores (2026-08-15)
+- `GET /api/admin/dashboard` (filtros: período, tipo de atendimento, modalidade, pagamento, plano, especialidade, médico, CID, incluir excluídos) e `GET /api/admin/dashboard/data-quality` — cobrem volume, particular×plano, interconsultas, tempo de internação (hospitalar × Neurologia, nunca misturados), cobertura de visita diária, diagnósticos (top + concordância hipótese→final), reinternação (7/30 dias), pendências, avaliações únicas, cobertura operacional por médico (sem ranking) e painel de qualidade dos dados (seção 80).
+- Percentis (P25/mediana/P75/P90) calculados em PHP (`App\Services\Percentiles`) já que SQLite não tem `PERCENTILE_CONT` nativo — coberto por teste unitário.
+- Tela `/admin/dashboard` no frontend consumindo tudo isso, testada visualmente via Playwright (390px).
+- 3 novos testes de feature (`DashboardTest`) + 3 unitários (`PercentilesTest`) — 31 testes no total, todos passando.
+- Bug encontrado e corrigido durante o teste visual: "patient-days" aparecia como `0.000029902511574074073` (fração de segundo sem arredondamento) — corrigido com `round(..., 1)`.
 
 ETAPAS CONCLUÍDAS:
 
@@ -20,7 +27,6 @@ ETAPAS CONCLUÍDAS:
 Executado o fluxo completo: login com `admin`/`senha@1234` → troca de senha obrigatória → dashboard → novo atendimento com prontuário inexistente → cadastro de paciente → formulário de episódio (Institucional/Acompanhamento/Particular + autocomplete de CID) → detalhe do atendimento → atribuir responsável → marcar visita realizada → criar pendência → resolver pendência → encerrar acompanhamento com diagnóstico final → confirmar que o caso sai da lista de ativos e aparece em Altas/Histórico. Sem erros de console além dos esperados (401 antes do login, 404 na busca de prontuário inexistente — comportamento correto). Screenshots confirmam layout mobile correto em cada etapa.
 
 ## PENDENTE (não iniciado ou parcial) — próximas fases
-- **Dashboard administrativo e indicadores** (FASE 14, seções 55/67-80): os cards de resumo do dashboard hoje mostram apenas a contagem total do filtro ativo (via paginação), não os KPIs completos (patient-days, tempo de resposta, concordância diagnóstica, etc.) — precisa de endpoints de agregação dedicados.
 - **Exportação XLSX** (FASE 15, seções 81-88): não iniciada.
 - **Restore de backup** (seção 95) e **Zona de perigo / zerar dados** (seções 96-97): não implementados.
 - **PWA** (FASE 17): manifest.webmanifest, service worker (shell-only), ícones — não iniciado. `vite-plugin-pwa` está instalado mas não configurado.
