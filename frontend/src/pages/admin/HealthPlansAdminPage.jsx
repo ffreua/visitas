@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api from '../../lib/api'
 
 export default function HealthPlansAdminPage() {
   const [plans, setPlans] = useState([])
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const [importMessage, setImportMessage] = useState('')
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef(null)
 
   function load() {
     api.get('/admin/health-plans').then(({ data }) => setPlans(data.data))
@@ -29,6 +32,29 @@ export default function HealthPlansAdminPage() {
     load()
   }
 
+  async function handleImport(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    setImportMessage('')
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post('/admin/health-plans/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setImportMessage(`${data.created} plano(s) novo(s) importado(s), ${data.skipped_existing} já existiam.`)
+      load()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erro ao importar CSV.')
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   return (
     <div>
       <h2 className="section-title" style={{ marginTop: 0 }}>Planos de saúde</h2>
@@ -40,6 +66,13 @@ export default function HealthPlansAdminPage() {
           <button type="submit" className="btn btn-primary">+ Adicionar</button>
         </div>
       </form>
+
+      <div className="card">
+        <div className="section-title" style={{ marginTop: 0 }}>Importar planos via CSV</div>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Arquivo com cabeçalho contendo a coluna "name". Planos já existentes (por nome) são ignorados, nunca duplicados.</p>
+        {importMessage && <div className="alert alert-warning">{importMessage}</div>}
+        <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleImport} disabled={importing} />
+      </div>
 
       <div style={{ overflowX: 'auto' }}>
         <table className="admin-table">

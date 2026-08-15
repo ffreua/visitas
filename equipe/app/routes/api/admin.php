@@ -19,6 +19,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/health-plans', [HealthPlanController::class, 'index'])->name('health-plans.index');
     Route::post('/health-plans', [HealthPlanController::class, 'store'])->name('health-plans.store');
     Route::put('/health-plans/{healthPlan}', [HealthPlanController::class, 'update'])->name('health-plans.update');
+    Route::post('/health-plans/import', [HealthPlanController::class, 'import'])->name('health-plans.import');
 
     Route::get('/medical-specialties', [MedicalSpecialtyController::class, 'index'])->name('medical-specialties.index');
     Route::post('/medical-specialties', [MedicalSpecialtyController::class, 'store'])->name('medical-specialties.store');
