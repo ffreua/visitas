@@ -1,6 +1,14 @@
 # STATUS
 
-ETAPA ATUAL: Revisão de segurança independente (seção 132 do PRD) concluída e todos os achados corrigidos e testados. **O sistema atende a todo o "Definition of Done" da seção 131 do PRD, exceto o deploy real em produção**, que depende de acesso à hospedagem HostGator (fora do alcance deste ambiente de desenvolvimento).
+ETAPA ATUAL: Estrutura de deploy validada de ponta a ponta com o prefixo `/visitas/` real (não só configurada). Todos os achados da revisão de segurança independente corrigidos e testados. **O sistema atende a todo o "Definition of Done" da seção 131 do PRD, exceto o deploy real em produção**, que depende de acesso à hospedagem HostGator (fora do alcance deste ambiente de desenvolvimento).
+
+## Build de produção testado de ponta a ponta com `/visitas/` real (2026-08-15)
+Ao gerar o build de produção de verdade (`VITE_BASE_PATH=/visitas/ npm run build`) e testar com o prefixo real (via `vite preview`, que respeita `base` corretamente — diferente de `php artisan serve` sozinho), apareceram dois problemas que só existiam nessa configuração específica (nunca testada antes com o prefixo de verdade):
+
+1. **Estrutura de pastas errada**: o build estava sendo copiado para `public_html/visitas/build/`, mas o Vite gera os assets referenciando `/visitas/assets/...` (sem o segmento extra `/build/`) — o navegador pedia os arquivos no lugar errado, página em branco. Corrigido: build e `index.php`/`.htaccess` agora ficam todos no mesmo nível dentro de `public_html/visitas/` (sem subpasta `build/`); `routes/web.php` ajustado para ler `public_path('index.html')`.
+2. **Bug real no `api.js`**: o interceptor do Axios fazia `window.location.href = '/login'` (redirect absoluto, ignorando o prefixo) sempre que uma chamada de API voltava 401/423. Em produção isso levaria o usuário para `drfernandofreua.com.br/login` (404) toda vez que a sessão expirasse — em vez de `.../visitas/login`. Corrigido criando `frontend/src/lib/basePath.js` (fonte única do prefixo, usada tanto pelo `BrowserRouter` quanto pelos redirects do `api.js`).
+
+Validado depois da correção: fluxo completo (login → troca de senha → dashboard → refresh numa rota profunda) mantendo `/visitas` corretamente na URL o tempo todo, via Playwright contra o build real servido com o prefixo certo.
 
 ## Revisão de segurança independente (2026-08-15)
 Um agente sem contexto prévio do desenvolvimento auditou os 20 itens da seção 132 do PRD lendo o código real (rotas, policies, controllers, migrations) e validando empiricamente os pontos críticos. Resultado: núcleo de segurança (RBAC, CSRF, SQL injection, XSS, mass assignment, soft delete, hard delete) **genuinamente sólido**; 10 achados reais de correção clínica/configuração, todos corrigidos nesta sessão com teste de regressão:

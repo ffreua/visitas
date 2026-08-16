@@ -41,11 +41,15 @@ Route::prefix('api')->name('api.')->group(function () {
 |
 | Qualquer rota que não seja /api/* devolve o shell do React (build estático)
 | para que o roteamento client-side (react-router) funcione em refresh direto.
-| Em produção este arquivo é public_html/build/index.html.
+| Em produção este arquivo é public_html/visitas/index.html — junto com o
+| resto do build (assets/, icons/, manifest, sw.js), sem subpasta própria:
+| o build inteiro (Vite base=/visitas/) e o index.php do Laravel convivem
+| no mesmo diretório. Uma subpasta "build/" faria o basename do
+| react-router (derivado de import.meta.env.BASE_URL) ficar errado.
 |
 */
 Route::get('/{any}', function () {
-    $indexPath = public_path('build/index.html');
+    $indexPath = public_path('index.html');
 
     if (file_exists($indexPath)) {
         return response()->file($indexPath);

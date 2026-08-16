@@ -23,10 +23,19 @@ equipe/app/storage/logs/*
 frontend/node_modules/
 frontend/dist/
 
-# Build compilado — gerado localmente e enviado direto ao servidor, não versionado
-public_html/visitas/build/
+# Build compilado — gerado localmente (VITE_BASE_PATH=/visitas/ npm run build)
+# e enviado direto ao servidor, não versionado. Fica junto com index.php/
+# .htaccess dentro de public_html/visitas/ (sem subpasta "build/" própria —
+# ver routes/web.php e vite.config.js).
 public_html/visitas/assets/*
 !public_html/visitas/assets/.gitkeep
+public_html/visitas/icons/
+public_html/visitas/index.html
+public_html/visitas/manifest.webmanifest
+public_html/visitas/favicon.svg
+public_html/visitas/sw.js
+public_html/visitas/registerSW.js
+public_html/visitas/workbox-*.js
 
 # Diversos
 .DS_Store

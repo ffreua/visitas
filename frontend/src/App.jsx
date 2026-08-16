@@ -16,11 +16,7 @@ import DashboardAdminPage from './pages/admin/DashboardAdminPage'
 import ExportsAdminPage from './pages/admin/ExportsAdminPage'
 import SystemAdminPage from './pages/admin/SystemAdminPage'
 import OfflineBanner from './components/OfflineBanner'
-
-// import.meta.env.BASE_URL reflete o "base" do vite.config.js (ver
-// VITE_BASE_PATH ali) — mantém as rotas corretas caso o app seja servido
-// de uma subpasta do domínio em produção (drfernandofreua.com.br/visitas).
-const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+import { basename } from './lib/basePath'
 
 export default function App() {
   return (

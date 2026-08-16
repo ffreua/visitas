@@ -2,7 +2,7 @@
 
 Domínio de produção: `drfernandofreua.com.br/visitas`.
 
-**Confirmado**: `public_html` já hospeda o site principal do domínio — este app fica na subpasta `public_html/visitas/`, não no document root. Todo o código já reflete essa estrutura (não é mais uma decisão pendente).
+**Confirmado**: `public_html` já hospeda o site principal do domínio — este app fica na subpasta `public_html/visitas/`, não no document root. Todo o código já reflete essa estrutura.
 
 ## Estrutura no servidor
 
@@ -16,12 +16,18 @@ Domínio de produção: `drfernandofreua.com.br/visitas`.
 │   └── logs/
 └── public_html/                  ← site principal existente — não mexer no que já está aqui
     ├── (arquivos do site atual, intocados)
-    └── visitas/                   ← ESTE APP
+    └── visitas/                   ← ESTE APP — tudo no mesmo nível, sem subpasta "build/"
         ├── index.php               já pronto neste repo — carrega o Laravel de fora de public_html
         ├── .htaccess                já pronto neste repo
-        ├── build/                   gerado por `npm run build`, não versionado (ver passo 1)
-        └── assets/
+        ├── index.html               gerado por `npm run build` (shell do SPA)
+        ├── assets/                  JS/CSS com hash, gerado pelo build
+        ├── icons/                   ícones do PWA, gerado pelo build
+        ├── manifest.webmanifest     gerado pelo build
+        ├── sw.js / registerSW.js / workbox-*.js   service worker, gerado pelo build
+        └── favicon.svg              gerado pelo build
 ```
+
+**Importante**: o build do frontend fica **junto** com `index.php`/`.htaccess` no mesmo diretório — não numa subpasta `build/` própria. Isso não é só estético: o `base` do Vite (`/visitas/`) faz o HTML referenciar os assets como `/visitas/assets/...`, `/visitas/manifest.webmanifest` etc. — se esses arquivos estivessem uma subpasta mais fundo (`/visitas/build/assets/...`), o navegador pediria no lugar errado e o app carregaria em branco. (Isso foi um bug real, encontrado e corrigido durante os testes — ver `IMPLEMENTATION_LOG.md`.)
 
 ## O que sobe para `public_html/visitas/` (via cPanel File Manager ou FTP/SFTP)
 
@@ -29,14 +35,14 @@ Só conteúdo estático/público — nada sensível:
 
 1. `public_html/visitas/index.php` — já está neste repositório, pronto (carrega o Laravel de `~/equipe/app`).
 2. `public_html/visitas/.htaccess` — já está neste repositório, pronto.
-3. `public_html/visitas/build/` — **gerado localmente**, não existe no repositório. Rodar:
+3. Todo o conteúdo do build — **gerado localmente**, não existe no repositório:
    ```bash
    cd frontend
    VITE_BASE_PATH=/visitas/ npm run build
    ```
-   e copiar **todo o conteúdo** de `frontend/dist/` para dentro de `public_html/visitas/build/` (o `index.html` de dentro de `dist/` vira `public_html/visitas/build/index.html` — é isso que a rota SPA fallback em `routes/web.php` espera via `public_path('build/index.html')`, e `public_path()` já resolve para `public_html/visitas`).
+   e copiar **todo o conteúdo** de `frontend/dist/` (não a pasta `dist` em si, o que está *dentro* dela) direto para dentro de `public_html/visitas/`, no mesmo nível de `index.php`/`.htaccess`.
 
-   > No Git Bash/MSYS, `VITE_BASE_PATH=/visitas/` sozinho pode ser convertido incorretamente para um caminho do Windows. Se isso acontecer (build gerar caminhos tipo `/C:/.../visitas/assets/...`), rodar com `MSYS_NO_PATHCONV=1` na frente do comando.
+   > No Git Bash/MSYS, `VITE_BASE_PATH=/visitas/` sozinho pode ser convertido incorretamente para um caminho do Windows (vira algo como `/C:/Program Files/.../visitas/`). Se isso acontecer, rodar com `MSYS_NO_PATHCONV=1` na frente do comando.
 
 Nada mais precisa ir para `public_html/visitas/` — sem `.env`, sem `vendor/`, sem SQLite, sem `equipe/`.
 
@@ -54,9 +60,9 @@ Nada mais precisa ir para `public_html/visitas/` — sem `.env`, sem `vendor/`, 
 
 ## Passo a passo completo
 
-1. Gerar o build do frontend com `VITE_BASE_PATH=/visitas/` (ver acima) e copiar para `public_html/visitas/build/`.
+1. Gerar o build do frontend com `VITE_BASE_PATH=/visitas/` (ver acima) e copiar o **conteúdo** de `frontend/dist/` direto para `public_html/visitas/` (mesmo nível de `index.php`).
 2. Rodar `composer install --no-dev --optimize-autoloader` dentro de `equipe/app` localmente.
-3. Upload de `equipe/app` (sem o `.env` de desenvolvimento) para `~/equipe/app`, e de `public_html/visitas/index.php` + `.htaccess` + `build/` para `~/public_html/visitas/`.
+3. Upload de `equipe/app` (sem o `.env` de desenvolvimento) para `~/equipe/app`, e do conteúdo de `public_html/visitas/` (index.php + .htaccess já no repo + o build recém-gerado) para `~/public_html/visitas/`.
 4. Criar `.env` de produção diretamente no servidor (nunca via Git) — ver seção "ENV produção" abaixo.
 5. Gerar `APP_KEY` (`php artisan key:generate`) se o cPanel oferecer terminal PHP; caso contrário gerar localmente e colar no `.env` do servidor.
 6. Criar `~/equipe/data/neurologia.sqlite3` (arquivo vazio) e rodar `php artisan migrate --force` + `php artisan db:seed --force` no terminal do cPanel (`DatabaseSeeder` cria o admin inicial `admin`/`senha@1234` com troca obrigatória, além de especialidades/planos/CID-10 de exemplo). Depois, importar a tabela completa de CID-10 com `php artisan cid10:import {arquivo.csv}` (o seeder padrão só tem ~24 códigos de exemplo para desenvolvimento).
@@ -64,7 +70,7 @@ Nada mais precisa ir para `public_html/visitas/` — sem `.env`, sem `vendor/`, 
 8. Confirmar permissões de escrita em `~/equipe/data`, `~/equipe/backups`, `~/equipe/exports`, `~/equipe/app/storage`.
 9. `php artisan config:cache && php artisan route:cache && php artisan view:cache` — somente depois que `.env` estiver 100% definitivo.
 10. Configurar Cron Job do cPanel chamando `php artisan schedule:run` a cada minuto (ver seção "Agendamento" abaixo) — opcional, mas recomendado.
-11. Testar: acessar `https://drfernandofreua.com.br/visitas/`, confirmar que o site principal do domínio (fora de `/visitas`) continua intocado, fazer login, e testar refresh direto numa subrota (ex.: `/visitas/admin/dashboard`) para confirmar que o fallback SPA está servindo o arquivo certo.
+11. Testar: acessar `https://drfernandofreua.com.br/visitas/`, confirmar que o site principal do domínio (fora de `/visitas`) continua intocado, fazer login, testar refresh direto numa subrota (ex.: `/visitas/admin/dashboard`), e confirmar que a sessão expirada redireciona para `/visitas/login` (não `/login`, na raiz do domínio).
 
 ## ENV produção (referência)
 
@@ -118,12 +124,15 @@ A aplicação funciona normalmente sem cron — backup vira uma tarefa manual do
 - Build do React sempre local; servidor só recebe estático.
 - `public_html/visitas/.htaccess` serve arquivos estáticos existentes diretamente (rápido, sem PHP) e só cai no `index.php` do Laravel para `/api/*` e para o shell do SPA.
 - Não tocar em nada fora de `public_html/visitas/` dentro de `public_html` — é o site principal do domínio.
+- Build do frontend e `index.php`/`.htaccess` sempre no **mesmo nível** dentro de `public_html/visitas/` — nunca aninhar o build numa subpasta própria (ver seção acima).
 
-## Validado localmente (não em produção real)
+## Validado localmente (não em produção real, mas de ponta a ponta)
 
-- Build com `VITE_BASE_PATH=/visitas/` gera caminhos de asset corretos (`/visitas/assets/...`, `/visitas/manifest.webmanifest`, etc.).
-- `public_path()` do Laravel resolve corretamente para `public_html/visitas` (via `Application::usePublicPath()` em `bootstrap/app.php`).
-- Servindo o build copiado localmente via `php artisan serve`: `/` e uma rota profunda (`/admin/dashboard`) servem o shell do SPA corretamente; `/api/*` continua respondendo JSON normalmente.
+- Build com `VITE_BASE_PATH=/visitas/` gera caminhos de asset corretos (`/visitas/assets/...`, `/visitas/manifest.webmanifest`, etc.), servido flat junto com `index.php`.
+- `public_path()` do Laravel resolve corretamente para `public_html/visitas` (via `Application::usePublicPath()` em `bootstrap/app.php`); a rota SPA fallback lê `public_path('index.html')` (sem subpasta).
+- Servindo o build real via `php artisan serve`: asset JS/CSS retornam com `Content-Type` e conteúdo corretos (não a página HTML por engano), `/` e uma rota profunda (`/admin/dashboard`) servem o shell do SPA, `/api/*` responde JSON.
+- **Fluxo completo no navegador com o prefixo `/visitas/` de verdade** (via `vite preview` com o mesmo `VITE_BASE_PATH`, proxeando `/api` pro Laravel): login → troca de senha obrigatória → dashboard → refresh direto numa rota profunda — tudo mantendo `/visitas` na URL corretamente.
+- **Bug real encontrado e corrigido nesse processo**: o interceptor do Axios fazia `window.location.href = '/login'` (redirect absoluto, sem o prefixo) sempre que uma chamada de API retornava 401/423 — em produção isso levaria o usuário para `drfernandofreua.com.br/login` (404) em vez de `.../visitas/login` toda vez que a sessão expirasse. Corrigido prefixando esses redirects com o mesmo base path usado pelo react-router (`frontend/src/lib/basePath.js`).
 
 ## Ainda pendente antes do deploy real
 - Revisão de segurança independente (seção 132 do PRD) — já concluída, ver `SECURITY_CHECKLIST.md` e `IMPLEMENTATION_LOG.md`.
