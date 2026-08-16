@@ -24,9 +24,9 @@ frontend/node_modules/
 frontend/dist/
 
 # Build compilado — gerado localmente e enviado direto ao servidor, não versionado
-public_html/build/
-public_html/assets/*
-!public_html/assets/.gitkeep
+public_html/visitas/build/
+public_html/visitas/assets/*
+!public_html/visitas/assets/.gitkeep
 
 # Diversos
 .DS_Store

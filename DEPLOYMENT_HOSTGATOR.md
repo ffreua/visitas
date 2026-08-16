@@ -2,43 +2,69 @@
 
 Domínio de produção: `drfernandofreua.com.br/visitas`.
 
+**Confirmado**: `public_html` já hospeda o site principal do domínio — este app fica na subpasta `public_html/visitas/`, não no document root. Todo o código já reflete essa estrutura (não é mais uma decisão pendente).
+
 ## Estrutura no servidor
 
 ```text
 /home/USUARIO/
-├── equipe/
-│   ├── app/            (Laravel: app, bootstrap, config, database, routes, storage, vendor, .env)
-│   ├── data/            neurologia.sqlite3
+├── equipe/                       ← PRIVADO, fora de public_html
+│   ├── app/                       Laravel: app, bootstrap, config, database, routes, storage, vendor, .env
+│   ├── data/                      neurologia.sqlite3
 │   ├── backups/
 │   ├── exports/
 │   └── logs/
-└── public_html/
-    ├── index.php        (já pronto neste repo — carrega o Laravel de fora de public_html)
-    ├── .htaccess         (já pronto neste repo)
-    ├── build/            (gerado por `npm run build`, não versionado)
-    ├── assets/
-    ├── icons/
-    ├── manifest.webmanifest
-    └── sw.js
+└── public_html/                  ← site principal existente — não mexer no que já está aqui
+    ├── (arquivos do site atual, intocados)
+    └── visitas/                   ← ESTE APP
+        ├── index.php               já pronto neste repo — carrega o Laravel de fora de public_html
+        ├── .htaccess                já pronto neste repo
+        ├── build/                   gerado por `npm run build`, não versionado (ver passo 1)
+        └── assets/
 ```
 
-> **Decisão pendente**: `public_html/index.php` e `.htaccess` deste repositório assumem que `public_html/` é o *document root* dedicado do domínio/subdomínio (sibling direto de `equipe/`, exatamente como no diagrama do PRD). Se `visitas` acabar sendo uma **subpasta** dentro de um `public_html` compartilhado com outro conteúdo do domínio principal, ajustar:
-> - `public_html/index.php`: trocar `__DIR__.'/../equipe/app'` por `__DIR__.'/../../equipe/app'` (um nível a mais).
-> - Build do frontend: rodar com `VITE_BASE_PATH=/visitas/ npm run build` (já suportado em `vite.config.js` e `App.jsx`) em vez do build padrão (`base: '/'`).
-> Essa decisão só pode ser tomada com acesso real ao cPanel para ver como o addon domain/subdomínio foi configurado.
+## O que sobe para `public_html/visitas/` (via cPanel File Manager ou FTP/SFTP)
 
-## Passo a passo
+Só conteúdo estático/público — nada sensível:
 
-1. **Local**: `cd frontend && npm run build` (ou `VITE_BASE_PATH=/visitas/ npm run build`, ver nota acima) → gera `frontend/dist`. Copiar todo o conteúdo de `dist/` para dentro de `public_html/` (os arquivos `build/assets/*.js/css`, `manifest.webmanifest`, `sw.js`, `workbox-*.js`, `registerSW.js`, `icons/`, `favicon.svg`, `index.html` como `build/index.html` — ver a rota SPA fallback em `routes/web.php`, que espera `public_path('build/index.html')`).
-2. **Local**: `cd equipe/app && composer install --no-dev --optimize-autoloader` → enviar `vendor/` junto com a aplicação (o servidor HostGator não precisa rodar `composer`).
-3. Upload de `equipe/app` (sem o `.env` de desenvolvimento) para `~/equipe/app`, e de `public_html/index.php` + `.htaccess` (já neste repo) para `~/public_html/`, via cPanel File Manager ou FTP/SFTP.
+1. `public_html/visitas/index.php` — já está neste repositório, pronto (carrega o Laravel de `~/equipe/app`).
+2. `public_html/visitas/.htaccess` — já está neste repositório, pronto.
+3. `public_html/visitas/build/` — **gerado localmente**, não existe no repositório. Rodar:
+   ```bash
+   cd frontend
+   VITE_BASE_PATH=/visitas/ npm run build
+   ```
+   e copiar **todo o conteúdo** de `frontend/dist/` para dentro de `public_html/visitas/build/` (o `index.html` de dentro de `dist/` vira `public_html/visitas/build/index.html` — é isso que a rota SPA fallback em `routes/web.php` espera via `public_path('build/index.html')`, e `public_path()` já resolve para `public_html/visitas`).
+
+   > No Git Bash/MSYS, `VITE_BASE_PATH=/visitas/` sozinho pode ser convertido incorretamente para um caminho do Windows. Se isso acontecer (build gerar caminhos tipo `/C:/.../visitas/assets/...`), rodar com `MSYS_NO_PATHCONV=1` na frente do comando.
+
+Nada mais precisa ir para `public_html/visitas/` — sem `.env`, sem `vendor/`, sem SQLite, sem `equipe/`.
+
+## O que sobe para fora de `public_html` (pasta "privada", em `~/equipe/`)
+
+1. **Todo o diretório `equipe/app/`** deste repositório — código do Laravel (`app/`, `bootstrap/`, `config/`, `database/`, `routes/`, `resources/` se houver), **exceto**:
+   - `.env` — não subir o de desenvolvimento; criar um novo diretamente no servidor (ver seção "ENV produção" abaixo).
+   - `vendor/` do seu ambiente local não é obrigatório subir tal qual — rodar antes:
+     ```bash
+     cd equipe/app
+     composer install --no-dev --optimize-autoloader
+     ```
+     e subir o `vendor/` resultante junto (o servidor HostGator não precisa ter Composer nem rodá-lo).
+2. **As pastas vazias** `equipe/data/`, `equipe/backups/`, `equipe/exports/`, `equipe/logs/` — criar no servidor se não vierem no upload (o `.gitkeep` de cada uma já garante que existem no repositório).
+
+## Passo a passo completo
+
+1. Gerar o build do frontend com `VITE_BASE_PATH=/visitas/` (ver acima) e copiar para `public_html/visitas/build/`.
+2. Rodar `composer install --no-dev --optimize-autoloader` dentro de `equipe/app` localmente.
+3. Upload de `equipe/app` (sem o `.env` de desenvolvimento) para `~/equipe/app`, e de `public_html/visitas/index.php` + `.htaccess` + `build/` para `~/public_html/visitas/`.
 4. Criar `.env` de produção diretamente no servidor (nunca via Git) — ver seção "ENV produção" abaixo.
 5. Gerar `APP_KEY` (`php artisan key:generate`) se o cPanel oferecer terminal PHP; caso contrário gerar localmente e colar no `.env` do servidor.
 6. Criar `~/equipe/data/neurologia.sqlite3` (arquivo vazio) e rodar `php artisan migrate --force` + `php artisan db:seed --force` no terminal do cPanel (`DatabaseSeeder` cria o admin inicial `admin`/`senha@1234` com troca obrigatória, além de especialidades/planos/CID-10 de exemplo). Depois, importar a tabela completa de CID-10 com `php artisan cid10:import {arquivo.csv}` (o seeder padrão só tem ~24 códigos de exemplo para desenvolvimento).
-7. Rodar `php artisan neurologia:preflight` e conferir que tudo aparece `[OK]`; **remover o comando/pre-flight não é necessário** (não expõe nada sensível, mas pode ser removido do código se preferir não deixá-lo disponível).
+7. Rodar `php artisan neurologia:preflight` e conferir que tudo aparece `[OK]`.
 8. Confirmar permissões de escrita em `~/equipe/data`, `~/equipe/backups`, `~/equipe/exports`, `~/equipe/app/storage`.
 9. `php artisan config:cache && php artisan route:cache && php artisan view:cache` — somente depois que `.env` estiver 100% definitivo.
 10. Configurar Cron Job do cPanel chamando `php artisan schedule:run` a cada minuto (ver seção "Agendamento" abaixo) — opcional, mas recomendado.
+11. Testar: acessar `https://drfernandofreua.com.br/visitas/`, confirmar que o site principal do domínio (fora de `/visitas`) continua intocado, fazer login, e testar refresh direto numa subrota (ex.: `/visitas/admin/dashboard`) para confirmar que o fallback SPA está servindo o arquivo certo.
 
 ## ENV produção (referência)
 
@@ -87,13 +113,19 @@ A aplicação funciona normalmente sem cron — backup vira uma tarefa manual do
 - **Zona de perigo** (zerar dados clínicos, preservando usuários/CID/especialidades/planos): disponível via `Administração → Sistema` na interface, exige reautenticação por senha + frase de confirmação exata, e cria/verifica um backup de segurança antes — se o backup falhar, a operação é abortada e nada é apagado.
 
 ## Regras críticas
-- Nunca `.env`, SQLite, backups, exports, logs clínicos dentro de `public_html`.
+- Nunca `.env`, SQLite, backups, exports, logs clínicos dentro de `public_html` (nem em `public_html/visitas`).
 - Nunca depender de Node/Python/Docker/Redis/Postgres/MySQL rodando no servidor.
 - Build do React sempre local; servidor só recebe estático.
-- `public_html/.htaccess` serve arquivos estáticos existentes diretamente (rápido, sem PHP) e só cai no `index.php` do Laravel para `/api/*` e para o shell do SPA.
+- `public_html/visitas/.htaccess` serve arquivos estáticos existentes diretamente (rápido, sem PHP) e só cai no `index.php` do Laravel para `/api/*` e para o shell do SPA.
+- Não tocar em nada fora de `public_html/visitas/` dentro de `public_html` — é o site principal do domínio.
+
+## Validado localmente (não em produção real)
+
+- Build com `VITE_BASE_PATH=/visitas/` gera caminhos de asset corretos (`/visitas/assets/...`, `/visitas/manifest.webmanifest`, etc.).
+- `public_path()` do Laravel resolve corretamente para `public_html/visitas` (via `Application::usePublicPath()` em `bootstrap/app.php`).
+- Servindo o build copiado localmente via `php artisan serve`: `/` e uma rota profunda (`/admin/dashboard`) servem o shell do SPA corretamente; `/api/*` continua respondendo JSON normalmente.
 
 ## Ainda pendente antes do deploy real
-- Confirmar a estrutura exata do domínio/subdomínio no cPanel (ver nota no topo deste documento).
-- Revisão de segurança independente (seção 132 do PRD) — ver `SECURITY_CHECKLIST.md`.
+- Revisão de segurança independente (seção 132 do PRD) — já concluída, ver `SECURITY_CHECKLIST.md` e `IMPLEMENTATION_LOG.md`.
 - Substituir os ícones placeholder (`frontend/public/icons/`, gerados via GD) por arte de marca real, se desejado.
-- Testar o fluxo completo (E2E, seção 130 do PRD) direto em produção após o primeiro deploy.
+- Testar o fluxo completo (E2E, seção 130 do PRD) direto em produção após o primeiro deploy real no cPanel.

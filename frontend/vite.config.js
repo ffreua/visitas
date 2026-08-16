@@ -6,10 +6,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Proxy faz o navegador enxergar tudo como mesma origem — sem isso,
 // cookie de sessão e CSRF do Laravel não funcionariam corretamente.
 //
-// Produção vai ficar em drfernandofreua.com.br/visitas (subpasta, não raiz
-// do domínio) — se o document root do domínio não apontar diretamente para
-// essa pasta, os caminhos absolutos dos assets ("/assets/...") quebram.
-// Ajustar VITE_BASE_PATH=/visitas/ no build de produção se for o caso.
+// CONFIRMADO: produção fica em drfernandofreua.com.br/visitas, uma subpasta
+// dentro de um public_html que já tem outro site no domínio principal — não
+// é o document root dedicado. Por isso o BUILD DE PRODUÇÃO é OBRIGATORIAMENTE:
+//   VITE_BASE_PATH=/visitas/ npm run build
+// (sem isso os caminhos absolutos dos assets, "/assets/...", quebram — o
+// navegador buscaria em drfernandofreua.com.br/assets/..., não .../visitas/assets/...)
 const basePath = process.env.VITE_BASE_PATH || '/'
 
 export default defineConfig({

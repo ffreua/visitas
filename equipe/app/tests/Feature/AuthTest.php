@@ -117,6 +117,20 @@ class AuthTest extends TestCase
      * login. Sem o middleware "active", este teste falharia com 200/423 em
      * vez de 401.
      */
+    /**
+     * Regressão: uma requisição sem Accept: application/json (ex.: colar
+     * uma URL de /api/* direto no navegador) fazia o Laravel tentar
+     * redirecionar pra route('login'), que não existe nesta SPA — virava
+     * 500 em vez de um redirect/401 adequado. Clientes reais (axios sempre
+     * manda Accept: application/json) nunca passavam por esse caminho.
+     */
+    public function test_unauthenticated_request_without_json_accept_header_redirects_instead_of_500(): void
+    {
+        $this->get('/api/auth/me')->assertRedirect('/');
+
+        $this->getJson('/api/auth/me')->assertStatus(401)->assertJsonPath('message', 'Unauthenticated.');
+    }
+
     public function test_deactivating_user_kills_their_live_session_immediately(): void
     {
         $physician = User::factory()->create();

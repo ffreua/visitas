@@ -54,12 +54,22 @@ Sem `chromium-cli` disponível neste Windows, foi instalado Playwright isolado n
 2. **Dashboard e exportação**: dados de exemplo criados via API, dashboard renderizado e inspecionado visualmente (encontrou e corrigiu o bug do "patient-days" sem arredondamento), exportação XLSX baixada de verdade e validada abrindo o arquivo com PhpSpreadsheet.
 3. **PWA**: build de produção servido via `vite preview`, service worker confirmado ativo, Cache Storage/localStorage/IndexedDB inspecionados após login + criação de paciente real — zero rastro de dados clínicos fora do shell estático (seção 116 do PRD).
 
+## Estrutura de deploy confirmada (2026-08-15)
+`public_html` já hospeda o site principal do domínio — este app fica confirmadamente na subpasta `public_html/visitas/`, não no document root. Ajustado:
+- `public_html/index.php` movido para `public_html/visitas/index.php`, caminho relativo para `equipe/app` corrigido (`../../equipe/app`).
+- `public_html/.htaccess` movido para `public_html/visitas/.htaccess` (conteúdo não muda — regras já eram relativas).
+- `bootstrap/app.php`: `usePublicPath()` agora aponta para `public_html/visitas` (não `public_html`).
+- `vite.config.js`: build de produção passa a ser **obrigatoriamente** `VITE_BASE_PATH=/visitas/ npm run build`.
+- **Bug real encontrado e corrigido durante a validação**: uma requisição sem header `Accept: application/json` (ex.: colar uma URL de API direto no navegador) fazia o Laravel tentar redirecionar para `route('login')`, que não existe nesta SPA — virava 500 em vez de um redirect/401 adequado. Clientes reais (axios sempre manda `Accept: application/json`) nunca passavam por esse caminho, por isso não tinha aparecido antes. Corrigido com `$middleware->redirectGuestsTo('/')` em `bootstrap/app.php`. Teste de regressão adicionado (52 testes no total).
+- Validado servindo um build real (com os caminhos `/visitas/...` corretos) via `php artisan serve`: `/` e uma rota profunda funcionam, `/api/*` continua respondendo JSON.
+- `DEPLOYMENT_HOSTGATOR.md` reescrito com instruções objetivas e definitivas (não mais uma decisão pendente) sobre o que sobe para `public_html/visitas/` e o que sobe para a pasta privada `equipe/`.
+
 ## PENDENTE — apenas isto
-- **Deploy HostGator real** (FASE 20): arquivos (`public_html/index.php`, `.htaccess`, roteiro completo em `DEPLOYMENT_HOSTGATOR.md`) estão prontos e testados localmente (inclusive o fallback SPA servindo um build real copiado para `public_html/build`); falta confirmar a estrutura exata do domínio/subpasta no cPanel real e executar o upload — isso exige acesso à hospedagem, que não está disponível neste ambiente de desenvolvimento.
+- **Deploy HostGator real** (FASE 20): todos os arquivos estão prontos e testados localmente com a estrutura de subpasta confirmada; falta o upload de verdade no cPanel, que exige acesso à hospedagem (não disponível neste ambiente de desenvolvimento).
 
 Todo o resto do escopo do PRD (backend, frontend, dashboard, exportação, PWA, backups/restore, zona de perigo, importação CSV, revisão de segurança independente) está implementado e testado.
 
-TESTES EXECUTADOS: `php artisan test` (51 passando, inclusive `--order-by=random` 2x), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend, cinco fluxos Playwright reais no navegador (fluxo assistencial completo, dashboard+exportação, PWA, sistema/zona de perigo, teste de fumaça pós-correções de segurança), e uma revisão de segurança independente completa (seção 132).
+TESTES EXECUTADOS: `php artisan test` (52 passando, inclusive `--order-by=random` 2x), `vendor/bin/pint --test` (limpo), `migrate:fresh --seed` contra SQLite real, `npm run lint`/`npm run build` do frontend (inclusive com `VITE_BASE_PATH=/visitas/`), cinco fluxos Playwright reais no navegador, servidor real testado com a estrutura de subpasta confirmada, e uma revisão de segurança independente completa (seção 132).
 TESTES APROVADOS: todos os executados acima.
 
 PROBLEMAS CONHECIDOS:
