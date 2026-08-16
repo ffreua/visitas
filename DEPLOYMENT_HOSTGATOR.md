@@ -1,140 +1,111 @@
-# DEPLOYMENT — HostGator / cPanel
+# DEPLOYMENT — HostGator / cPanel (sem terminal)
 
-Domínio de produção: `drfernandofreua.com.br/visitas`.
+Domínio: `drfernandofreua.com.br/visitas`. `public_html` já hospeda outro site — este app fica na subpasta `visitas`.
 
-**Confirmado**: `public_html` já hospeda o site principal do domínio — este app fica na subpasta `public_html/visitas/`, não no document root. Todo o código já reflete essa estrutura.
+Tudo já está pronto no seu computador para upload. Você **não precisa abrir terminal nem rodar nenhum comando** — só usar o Gerenciador de Arquivos do cPanel para subir duas pastas.
 
-## Estrutura no servidor
+## Onde estão os arquivos prontos, no seu computador
 
 ```text
-/home/USUARIO/
-├── equipe/                       ← PRIVADO, fora de public_html
-│   ├── app/                       Laravel: app, bootstrap, config, database, routes, storage, vendor, .env
-│   ├── data/                      neurologia.sqlite3
-│   ├── backups/
-│   ├── exports/
-│   └── logs/
-└── public_html/                  ← site principal existente — não mexer no que já está aqui
-    ├── (arquivos do site atual, intocados)
-    └── visitas/                   ← ESTE APP — tudo no mesmo nível, sem subpasta "build/"
-        ├── index.php               já pronto neste repo — carrega o Laravel de fora de public_html
-        ├── .htaccess                já pronto neste repo
-        ├── index.html               gerado por `npm run build` (shell do SPA)
-        ├── assets/                  JS/CSS com hash, gerado pelo build
-        ├── icons/                   ícones do PWA, gerado pelo build
-        ├── manifest.webmanifest     gerado pelo build
-        ├── sw.js / registerSW.js / workbox-*.js   service worker, gerado pelo build
-        └── favicon.svg              gerado pelo build
+visitas/                          (pasta do projeto)
+├── equipe/
+│   ├── app/                       ← sobe pra ~/equipe/app no servidor
+│   │   ├── .env.production.ready  ← sobe e RENOMEIA pra ".env" no servidor
+│   │   └── (todo o resto: app/, bootstrap/, config/, vendor/, etc.)
+│   ├── data/
+│   │   └── neurologia.sqlite3     ← já migrado e populado, pronto pra usar
+│   ├── backups/                   (vazia, ok)
+│   ├── exports/                   (vazia, ok)
+│   └── logs/                      (vazia, ok)
+└── public_html/
+    └── visitas/                   ← sobe pra ~/public_html/visitas no servidor
+        ├── index.php
+        ├── .htaccess
+        └── (build do site: index.html, assets/, icons/, etc.)
 ```
 
-**Importante**: o build do frontend fica **junto** com `index.php`/`.htaccess` no mesmo diretório — não numa subpasta `build/` própria. Isso não é só estético: o `base` do Vite (`/visitas/`) faz o HTML referenciar os assets como `/visitas/assets/...`, `/visitas/manifest.webmanifest` etc. — se esses arquivos estivessem uma subpasta mais fundo (`/visitas/build/assets/...`), o navegador pediria no lugar errado e o app carregaria em branco. (Isso foi um bug real, encontrado e corrigido durante os testes — ver `IMPLEMENTATION_LOG.md`.)
+## Passo a passo (só cPanel, sem terminal)
 
-## O que sobe para `public_html/visitas/` (via cPanel File Manager ou FTP/SFTP)
+### 1. Entre no cPanel → Gerenciador de Arquivos (File Manager)
 
-Só conteúdo estático/público — nada sensível:
+### 2. Suba a pasta `equipe`
 
-1. `public_html/visitas/index.php` — já está neste repositório, pronto (carrega o Laravel de `~/equipe/app`).
-2. `public_html/visitas/.htaccess` — já está neste repositório, pronto.
-3. Todo o conteúdo do build — **gerado localmente**, não existe no repositório:
-   ```bash
-   cd frontend
-   VITE_BASE_PATH=/visitas/ npm run build
-   ```
-   e copiar **todo o conteúdo** de `frontend/dist/` (não a pasta `dist` em si, o que está *dentro* dela) direto para dentro de `public_html/visitas/`, no mesmo nível de `index.php`/`.htaccess`.
+1. Navegue até a **raiz da sua conta** (não dentro de `public_html` — um nível acima, geralmente é onde o Gerenciador de Arquivos abre por padrão, ou clique em "Home"/"‎🏠").
+2. Se ainda não existir uma pasta `equipe` lá, crie uma.
+3. Dentro dela, faça upload das 5 subpastas do seu computador (`app`, `data`, `backups`, `exports`, `logs`) — pode selecionar tudo de uma vez e usar "Upload" ou arrastar.
+   - Se o Gerenciador de Arquivos permitir upload de `.zip`, é mais rápido: compacte a pasta `equipe` inteira num `.zip` no seu computador, suba o `.zip`, e use "Extract" (extrair) no próprio cPanel.
+4. **Dentro de `equipe/app/`**, depois do upload, **apague o arquivo `.env`** se ele tiver subido (não deveria — veja o passo 3), e **renomeie `.env.production.ready` para `.env`** (clique com botão direito no arquivo → Rename).
 
-   > No Git Bash/MSYS, `VITE_BASE_PATH=/visitas/` sozinho pode ser convertido incorretamente para um caminho do Windows (vira algo como `/C:/Program Files/.../visitas/`). Se isso acontecer, rodar com `MSYS_NO_PATHCONV=1` na frente do comando.
+> ⚠️ **O único passo manual que exige atenção**: o arquivo que vira `.env` no servidor tem que ser o `.env.production.ready`, nunca o `.env` comum da pasta (esse é só para uso no seu computador, com senha simples e sem HTTPS — não pode ir para o servidor).
 
-Nada mais precisa ir para `public_html/visitas/` — sem `.env`, sem `vendor/`, sem SQLite, sem `equipe/`.
+### 3. Suba a pasta `visitas` para dentro de `public_html`
 
-## O que sobe para fora de `public_html` (pasta "privada", em `~/equipe/`)
+1. Navegue até `public_html` (o site atual do domínio já está lá — não mexa em mais nada além da subpasta `visitas`).
+2. Se a subpasta `visitas` ainda não existir dentro de `public_html`, crie-a.
+3. Suba todo o conteúdo de `public_html/visitas/` do seu computador para dentro dela (`index.php`, `.htaccess`, `index.html`, `assets/`, `icons/`, `manifest.webmanifest`, `sw.js`, etc.).
 
-1. **Todo o diretório `equipe/app/`** deste repositório — código do Laravel (`app/`, `bootstrap/`, `config/`, `database/`, `routes/`, `resources/` se houver), **exceto**:
-   - `.env` — não subir o de desenvolvimento; criar um novo diretamente no servidor (ver seção "ENV produção" abaixo).
-   - `vendor/` do seu ambiente local não é obrigatório subir tal qual — rodar antes:
-     ```bash
-     cd equipe/app
-     composer install --no-dev --optimize-autoloader
-     ```
-     e subir o `vendor/` resultante junto (o servidor HostGator não precisa ter Composer nem rodá-lo).
-2. **As pastas vazias** `equipe/data/`, `equipe/backups/`, `equipe/exports/`, `equipe/logs/` — criar no servidor se não vierem no upload (o `.gitkeep` de cada uma já garante que existem no repositório).
+### 4. Teste
 
-## Passo a passo completo
+Acesse **`https://drfernandofreua.com.br/visitas/`**. Deve aparecer a tela de login.
 
-1. Gerar o build do frontend com `VITE_BASE_PATH=/visitas/` (ver acima) e copiar o **conteúdo** de `frontend/dist/` direto para `public_html/visitas/` (mesmo nível de `index.php`).
-2. Rodar `composer install --no-dev --optimize-autoloader` dentro de `equipe/app` localmente.
-3. Upload de `equipe/app` (sem o `.env` de desenvolvimento) para `~/equipe/app`, e do conteúdo de `public_html/visitas/` (index.php + .htaccess já no repo + o build recém-gerado) para `~/public_html/visitas/`.
-4. Criar `.env` de produção diretamente no servidor (nunca via Git) — ver seção "ENV produção" abaixo.
-5. Gerar `APP_KEY` (`php artisan key:generate`) se o cPanel oferecer terminal PHP; caso contrário gerar localmente e colar no `.env` do servidor.
-6. Criar `~/equipe/data/neurologia.sqlite3` (arquivo vazio) e rodar `php artisan migrate --force` + `php artisan db:seed --force` no terminal do cPanel (`DatabaseSeeder` cria o admin inicial `admin`/`senha@1234` com troca obrigatória, além de especialidades/planos/CID-10 de exemplo). Depois, importar a tabela completa de CID-10 com `php artisan cid10:import {arquivo.csv}` (o seeder padrão só tem ~24 códigos de exemplo para desenvolvimento).
-7. Rodar `php artisan neurologia:preflight` e conferir que tudo aparece `[OK]`.
-8. Confirmar permissões de escrita em `~/equipe/data`, `~/equipe/backups`, `~/equipe/exports`, `~/equipe/app/storage`.
-9. `php artisan config:cache && php artisan route:cache && php artisan view:cache` — somente depois que `.env` estiver 100% definitivo.
-10. Configurar Cron Job do cPanel chamando `php artisan schedule:run` a cada minuto (ver seção "Agendamento" abaixo) — opcional, mas recomendado.
-11. Testar: acessar `https://drfernandofreua.com.br/visitas/`, confirmar que o site principal do domínio (fora de `/visitas`) continua intocado, fazer login, testar refresh direto numa subrota (ex.: `/visitas/admin/dashboard`), e confirmar que a sessão expirada redireciona para `/visitas/login` (não `/login`, na raiz do domínio).
+- **Usuário**: `admin`
+- **Senha**: `senha@1234`
 
-## ENV produção (referência)
+O sistema vai pedir para trocar essa senha assim que você entrar — é o comportamento esperado (ninguém deve continuar usando a senha padrão).
 
-```env
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://drfernandofreua.com.br/visitas
-APP_TIMEZONE=America/Sao_Paulo
+## Se der erro
 
-DB_CONNECTION=sqlite
-DB_DATABASE=/home/USUARIO/equipe/data/neurologia.sqlite3
+- **Tela em branco ou erro 500**: confira se o arquivo `.env` (renomeado de `.env.production.ready`) está mesmo dentro de `equipe/app/`, e se a pasta `equipe` ficou no lugar certo (irmã de `public_html`, não dentro dela).
+- **"Erro de permissão" ou "database is locked"**: no Gerenciador de Arquivos, clique com botão direito nas pastas `equipe/data`, `equipe/backups`, `equipe/exports`, `equipe/logs` e em `equipe/app/storage` → "Change Permissions" → marcar leitura/escrita para o dono (geralmente já vem certo, só mexa se aparecer esse erro).
+- **Página principal do domínio sumiu ou mudou**: significa que algo foi parar no lugar errado dentro de `public_html` — confira se você só mexeu dentro da subpasta `visitas`.
 
-SESSION_DRIVER=file
-SESSION_SECURE_COOKIE=true
-SESSION_HTTP_ONLY=true
-SESSION_SAME_SITE=lax
+## O que este pacote já resolve sozinho (nada disso precisa de terminal)
 
-CACHE_STORE=file
-QUEUE_CONNECTION=sync
+- Banco de dados (`neurologia.sqlite3`) já criado, com as tabelas certas e um usuário administrador (`admin`/`senha@1234`), além de uma lista inicial de especialidades médicas e planos de saúde comuns.
+- Chave de segurança da aplicação (`APP_KEY`) já gerada dentro do `.env.production.ready`.
+- Endereço do site (`APP_URL`) já configurado para `https://drfernandofreua.com.br/visitas`.
 
-LOG_LEVEL=warning
+## O que fica pendente (precisa de mais atenção depois, não é urgente)
+
+- **Tabela completa de CID-10**: o banco já vem com ~24 códigos comuns em Neurologia (suficiente para usar o sistema desde já), mas não a tabela oficial completa (milhares de códigos). Importar a tabela completa exige rodar um comando (`cid10:import`) — isso precisa de acesso a terminal (ou eu posso gerar um banco já com a tabela completa depois, se você me arranjar o arquivo CID-10 em CSV).
+- **Backup automático diário**: também depende de um Cron Job do cPanel (`Cron Jobs` no painel, não é bem um "terminal" — é só preencher um formulário com um comando; se quiser, eu te aviso exatamente o que colar lá quando chegarmos nessa etapa. Não é obrigatório para o site funcionar).
+- **Trocar os ícones do app** (hoje são um placeholder simples, "N" azul) por uma arte de marca de verdade, se você quiser.
+
+## Para atualizações futuras (nova versão do sistema)
+
+Sempre que eu fizer mudanças no sistema depois de hoje, o processo de novo upload será parecido: eu preparo os arquivos prontos (incluindo um banco de dados atualizado, se precisar de mudança na estrutura), e você só substitui os arquivos correspondentes pelo Gerenciador de Arquivos — nunca vai precisar rodar comando.
+
+---
+
+## Referência técnica (para quando você tiver acesso a terminal, se um dia precisar)
+
+<details>
+<summary>Clique para expandir — comandos Artisan úteis, agendamento, backup/restore</summary>
+
+### Comandos úteis via terminal (se disponível)
+
+```bash
+php artisan neurologia:preflight        # checa se o ambiente está OK
+php artisan neurologia:backup           # cria backup verificado do banco
+php artisan neurologia:restore {arquivo}  # restaura um backup (exclusivo CLI, nunca web)
+php artisan cid10:import {arquivo.csv}  # importa a tabela CID-10 completa
 ```
 
-## Pre-flight
-
-`php artisan neurologia:preflight` checa: PHP >= 8.2, extensões `pdo`, `pdo_sqlite`, `sqlite3`, `openssl`, `mbstring`, `json`, `fileinfo`, `intl`, `session`; permissão de escrita real (não só `is_writable()`) em `equipe/data`, `equipe/backups`, `storage/`.
-
-## Agendamento (opcional, mas recomendado)
-
-Cron Job do cPanel, uma linha, a cada minuto:
+### Agendamento (Cron Job do cPanel, uma linha, a cada minuto)
 
 ```bash
 * * * * * cd /home/USUARIO/equipe/app && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Isso aciona (já configurado em `routes/console.php`):
-- `neurologia:backup` — diariamente às 03:00 (checkpoint WAL + checksum + retenção diária/semanal/mensal).
-- `exports:cleanup` — a cada hora (remove exports gerados e nunca baixados).
+Isso aciona backup diário (03:00) e limpeza de exportações órfãs (a cada hora).
 
-A aplicação funciona normalmente sem cron — backup vira uma tarefa manual do admin (`php artisan neurologia:backup` via terminal) nesse caso.
+### Zona de perigo / Restore
 
-## Backup e restore
+- **Restore de backup**: exclusivamente via terminal (`php artisan neurologia:restore`) — nunca uma tela do site, porque trocar o arquivo do banco com o site no ar é arriscado.
+- **Zerar dados clínicos** (preservando usuários/planos/especialidades): disponível na própria interface, em `Administração → Sistema`, com senha + frase de confirmação.
 
-- **Backup**: `php artisan neurologia:backup` (ou via cron acima). Cria `equipe/backups/neurologia_{timestamp}.sqlite3`, verifica com `PRAGMA integrity_check` antes de manter, calcula checksum SHA-256, registra em `audit_logs`.
-- **Restore**: **exclusivamente via CLI** — `php artisan neurologia:restore {nome_do_arquivo.sqlite3}` (pede confirmação interativa, ou `--force` para pular). Verifica integridade do backup escolhido, cria automaticamente um backup de segurança do estado atual antes de sobrescrever, e verifica integridade do resultado final. **Não existe rota web de restore** — trocar o arquivo do SQLite por baixo de uma aplicação em produção pode conflitar com conexões abertas de outros workers PHP-FPM; isso só deve ser feito com acesso direto ao servidor, de preferência fora do horário de maior uso, reiniciando o PHP-FPM/Apache logo em seguida.
-- **Zona de perigo** (zerar dados clínicos, preservando usuários/CID/especialidades/planos): disponível via `Administração → Sistema` na interface, exige reautenticação por senha + frase de confirmação exata, e cria/verifica um backup de segurança antes — se o backup falhar, a operação é abortada e nada é apagado.
+### Regras críticas
+- Nunca `.env`, banco de dados, backups, exportações dentro de `public_html`.
+- Build do React sempre feito no computador local; o servidor só recebe arquivos já prontos.
 
-## Regras críticas
-- Nunca `.env`, SQLite, backups, exports, logs clínicos dentro de `public_html` (nem em `public_html/visitas`).
-- Nunca depender de Node/Python/Docker/Redis/Postgres/MySQL rodando no servidor.
-- Build do React sempre local; servidor só recebe estático.
-- `public_html/visitas/.htaccess` serve arquivos estáticos existentes diretamente (rápido, sem PHP) e só cai no `index.php` do Laravel para `/api/*` e para o shell do SPA.
-- Não tocar em nada fora de `public_html/visitas/` dentro de `public_html` — é o site principal do domínio.
-- Build do frontend e `index.php`/`.htaccess` sempre no **mesmo nível** dentro de `public_html/visitas/` — nunca aninhar o build numa subpasta própria (ver seção acima).
-
-## Validado localmente (não em produção real, mas de ponta a ponta)
-
-- Build com `VITE_BASE_PATH=/visitas/` gera caminhos de asset corretos (`/visitas/assets/...`, `/visitas/manifest.webmanifest`, etc.), servido flat junto com `index.php`.
-- `public_path()` do Laravel resolve corretamente para `public_html/visitas` (via `Application::usePublicPath()` em `bootstrap/app.php`); a rota SPA fallback lê `public_path('index.html')` (sem subpasta).
-- Servindo o build real via `php artisan serve`: asset JS/CSS retornam com `Content-Type` e conteúdo corretos (não a página HTML por engano), `/` e uma rota profunda (`/admin/dashboard`) servem o shell do SPA, `/api/*` responde JSON.
-- **Fluxo completo no navegador com o prefixo `/visitas/` de verdade** (via `vite preview` com o mesmo `VITE_BASE_PATH`, proxeando `/api` pro Laravel): login → troca de senha obrigatória → dashboard → refresh direto numa rota profunda — tudo mantendo `/visitas` na URL corretamente.
-- **Bug real encontrado e corrigido nesse processo**: o interceptor do Axios fazia `window.location.href = '/login'` (redirect absoluto, sem o prefixo) sempre que uma chamada de API retornava 401/423 — em produção isso levaria o usuário para `drfernandofreua.com.br/login` (404) em vez de `.../visitas/login` toda vez que a sessão expirasse. Corrigido prefixando esses redirects com o mesmo base path usado pelo react-router (`frontend/src/lib/basePath.js`).
-
-## Ainda pendente antes do deploy real
-- Revisão de segurança independente (seção 132 do PRD) — já concluída, ver `SECURITY_CHECKLIST.md` e `IMPLEMENTATION_LOG.md`.
-- Substituir os ícones placeholder (`frontend/public/icons/`, gerados via GD) por arte de marca real, se desejado.
-- Testar o fluxo completo (E2E, seção 130 do PRD) direto em produção após o primeiro deploy real no cPanel.
+</details>

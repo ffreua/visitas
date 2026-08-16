@@ -35,7 +35,10 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            // Default relativo a equipe/data/ (sibling de equipe/app) — assim
+            // o .env de produção não precisa saber o caminho absoluto
+            // /home/USUARIO/..., que muda por conta de hospedagem.
+            'database' => env('DB_DATABASE', base_path('../data/neurologia.sqlite3')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),

@@ -4,6 +4,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- `config/database.php`: caminho do SQLite agora resolve relativo (`base_path('../data/neurologia.sqlite3')`) em vez de exigir um caminho absoluto no `.env` de produção.
+- `DEPLOYMENT_HOSTGATOR.md` reescrito para um fluxo sem terminal (upload direto via cPanel File Manager).
+
 ### Fixed
 - Revisão de segurança independente (seção 132 do PRD): timezone hardcoded em UTC (impacto clínico real na visita noturna), episódio ativo duplicado via restore/corrida de criação simultânea (+ índice único parcial), snapshot de plano de saúde dessincronizado, `.env.example` inseguro, sessão sobrevivendo à desativação de usuário, fallback SPA apontando pro caminho errado em produção, e uma dezena de itens menores (rate limiting de reautenticação, password spraying no login, `PatientPolicy` ausente, listagem admin de planos/especialidades acessível a médicos, validação de datas inoperante, atribuição de responsável a usuário inativo, `ip_hash`/`request_id` de auditoria). Todos corrigidos e cobertos por teste de regressão.
 - Estrutura de deploy confirmada: app fica em `public_html/visitas/` (subpasta de um `public_html` que já hospeda outro site), não no document root. `index.php`, `.htaccess`, `bootstrap/app.php` e `vite.config.js` ajustados. Também corrigido: requisição sem `Accept: application/json` causava 500 (tentava redirecionar pra uma rota de login inexistente) em vez de um redirect/401 adequado.

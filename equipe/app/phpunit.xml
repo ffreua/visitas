@@ -19,6 +19,12 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Testes nunca devem depender do APP_URL real do .env — em
+             produção ele inclui "/visitas" (subpasta), e o cliente de teste
+             do Laravel concatena APP_URL + path literalmente (sem um Apache
+             de verdade para stripar o prefixo), o que quebrava toda rota
+             registrada sem esse prefixo com 405. -->
+        <env name="APP_URL" value="http://localhost"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
