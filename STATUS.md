@@ -1,6 +1,13 @@
 # STATUS
 
-ETAPA ATUAL: Pacote de deploy pronto para upload direto via Gerenciador de Arquivos do cPanel — sem terminal. O usuário não tem/não quer usar acesso a terminal no servidor; o fluxo de deploy foi redesenhado para exigir apenas arrastar duas pastas.
+ETAPA ATUAL: Deploy real feito pelo usuário no HostGator; dois bugs de subpasta encontrados em produção e corrigidos. Aguardando o re-upload dos arquivos corrigidos (build novo + `index.php` + `.htaccess`) para reteste.
+
+## Primeiro deploy real: 404 no login (2026-08-15)
+O login falhou com 404. Duas causas reais, ambas corrigidas e validadas:
+- **`baseURL: '/api'` no Axios** — absoluto a partir da raiz do domínio, então em `/visitas` as chamadas iam para o outro site do `public_html` e voltavam 404. Passou despercebido porque a validação anterior usou `vite preview`, cujo proxy encaminha `/api` a partir da raiz e mascara exatamente esse bug. Corrigido para `${basePath}/api` (e o mesmo em `ExportsAdminPage.jsx`).
+- **`equipe/` está em `~/private/equipe`, não em `~/equipe`** — o `index.php` teria dado 500 assim que o 404 fosse resolvido. Agora aceita as duas posições, define `usePublicPath(__DIR__)` e falha com mensagem clara. Também adicionado `DirectoryIndex index.php` ao `.htaccess` (garante o cookie XSRF-TOKEN na primeira carga).
+
+Validado num ambiente que **imita o servidor** em vez de aproximar: servidor embutido do PHP com `router.php` emulando o Apache do cPanel (document root em `public_html`, app em `/visitas`, `SCRIPT_NAME=/visitas/index.php`) + junction do Windows colocando `equipe/` dentro de `private/` + `.env.production.ready` real + banco final. O 404 do usuário foi reproduzido e depois eliminado; fluxo completo no Chromium OK; sessão expirada redirecionando para `/visitas/login`.
 
 ## Deploy sem terminal (2026-08-15)
 - `config/database.php`: caminho padrão do SQLite trocado de `database_path('database.sqlite')` para `base_path('../data/neurologia.sqlite3')` — o `.env` de produção não precisa mais saber o caminho absoluto `/home/USUARIO/...` (que varia por conta de hospedagem); resolve relativo à posição de `equipe/app` automaticamente, tanto em dev quanto em produção.

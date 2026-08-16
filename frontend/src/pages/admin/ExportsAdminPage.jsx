@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../../lib/api'
+import { basePath } from '../../lib/basePath'
 
 export default function ExportsAdminPage() {
   const [filters, setFilters] = useState({
@@ -25,8 +26,9 @@ export default function ExportsAdminPage() {
       setSuccess(`Exportação gerada: ${data.row_count} episódio(s). Iniciando download…`)
       setPassword('')
 
-      // Download via navegação direta — mesma origem, cookie de sessão enviado automaticamente.
-      window.location.href = `/api/admin/exports/${data.download_token}/download`
+      // Download via navegação direta — mesma origem, cookie de sessão enviado
+      // automaticamente. basePath porque em produção o app fica em /visitas.
+      window.location.href = `${basePath}/api/admin/exports/${data.download_token}/download`
     } catch (err) {
       setError(err.response?.data?.message || Object.values(err.response?.data?.errors || {}).flat()[0] || 'Erro ao gerar exportação.')
     } finally {

@@ -1,3 +1,10 @@
+# /visitas/ tem que passar pelo Laravel (index.php), nunca ser servido como
+# index.html estático: é na resposta do Laravel que vem o cookie XSRF-TOKEN
+# que o axios reenvia como X-XSRF-TOKEN. Sem isso o primeiro login toma 419.
+<IfModule mod_dir.c>
+    DirectoryIndex index.php
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

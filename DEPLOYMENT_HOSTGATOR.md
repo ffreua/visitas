@@ -31,6 +31,7 @@ visitas/                          (pasta do projeto)
 ### 2. Suba a pasta `equipe`
 
 1. Navegue até a **raiz da sua conta** (não dentro de `public_html` — um nível acima, geralmente é onde o Gerenciador de Arquivos abre por padrão, ou clique em "Home"/"‎🏠").
+   - Também vale colocar dentro da pasta `private` (ficando `private/equipe`) — o app aceita as duas posições. O que **não** pode é ficar dentro de `public_html`.
 2. Se ainda não existir uma pasta `equipe` lá, crie uma.
 3. Dentro dela, faça upload das 5 subpastas do seu computador (`app`, `data`, `backups`, `exports`, `logs`) — pode selecionar tudo de uma vez e usar "Upload" ou arrastar.
    - Se o Gerenciador de Arquivos permitir upload de `.zip`, é mais rápido: compacte a pasta `equipe` inteira num `.zip` no seu computador, suba o `.zip`, e use "Extract" (extrair) no próprio cPanel.
@@ -55,7 +56,8 @@ O sistema vai pedir para trocar essa senha assim que você entrar — é o compo
 
 ## Se der erro
 
-- **Tela em branco ou erro 500**: confira se o arquivo `.env` (renomeado de `.env.production.ready`) está mesmo dentro de `equipe/app/`, e se a pasta `equipe` ficou no lugar certo (irmã de `public_html`, não dentro dela).
+- **Erro ao entrar, com 404 na aba Network do navegador**: o build que está no servidor é antigo. Suba de novo o conteúdo de `public_html/visitas/` (principalmente a pasta `assets/` e o `index.html`), apagando os arquivos antigos antes.
+- **Tela em branco ou erro 500**: confira se o arquivo `.env` (renomeado de `.env.production.ready`) está mesmo dentro de `equipe/app/`, e se a pasta `equipe` ficou fora de `public_html` (na raiz da conta ou dentro de `private`). Se o Laravel não for encontrado, a página mostra uma mensagem explicando isso em vez de uma tela branca.
 - **"Erro de permissão" ou "database is locked"**: no Gerenciador de Arquivos, clique com botão direito nas pastas `equipe/data`, `equipe/backups`, `equipe/exports`, `equipe/logs` e em `equipe/app/storage` → "Change Permissions" → marcar leitura/escrita para o dono (geralmente já vem certo, só mexa se aparecer esse erro).
 - **Página principal do domínio sumiu ou mudou**: significa que algo foi parar no lugar errado dentro de `public_html` — confira se você só mexeu dentro da subpasta `visitas`.
 

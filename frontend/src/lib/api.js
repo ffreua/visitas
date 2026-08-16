@@ -2,7 +2,10 @@ import axios from 'axios'
 import { basePath } from './basePath'
 
 const api = axios.create({
-  baseURL: '/api',
+  // Precisa do basePath: em produção o app é servido em /visitas, e um
+  // baseURL fixo "/api" mandaria toda chamada para a raiz do domínio
+  // (onde vive outro site), respondendo 404 em vez de chegar no Laravel.
+  baseURL: `${basePath}/api`,
   withCredentials: true,
   withXSRFToken: true,
   headers: {
