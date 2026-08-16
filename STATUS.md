@@ -1,6 +1,17 @@
 # STATUS
 
-ETAPA ATUAL: Deploy real feito pelo usuário no HostGator; dois bugs de subpasta encontrados em produção e corrigidos. Aguardando o re-upload dos arquivos corrigidos (build novo + `index.php` + `.htaccess`) para reteste.
+ETAPA ATUAL: Correções aplicadas com sucesso (fuso horário na visita diária + eager loading do médico responsável + base completa de 14.232 códigos CID-10 importada no SQLite). Novo build gerado e copiado para `public_html/visitas/`. Aguardando upload para o HostGator.
+
+## Atribuição do médico do dia & Base completa de CID-10 (2026-08-15)
+1. **Atribuição do médico responsável na visita**:
+   - **Fuso horário no frontend (`format.js`)**: `todayISODate()` usava `new Date().toISOString()`, que calculava a data em UTC. No fuso de Brasília (UTC-3), requisições após as 21:00 viravam o dia seguinte no frontend (procurando a visita do dia seguinte, que ainda não existia). Corrigido para extrair a data local do navegador (`YYYY-MM-DD`).
+   - `formatDate(value)` corrigido para não sofrer deslocamento de fuso em strings de data pura (`YYYY-MM-DD`).
+   - **Eager loading no backend (`AdmissionController.php`)**: `self::EAGER` atualizado para carregar `dailyRounds.assignedPhysician` e `dailyRounds.completer`. Fallback de segurança no frontend adicionado.
+2. **Base de dados completa de CID-10**:
+   - `equipe/app/app/Console/Commands/Cid10Import.php` aprimorado para suportar tanto `.json` quanto `.csv` com upsert em lote de alta performance (chunks de 500 dentro de transação).
+   - `equipe/app/database/seeders/CID10Seeder.php` atualizado para ler `equipe/data/cid10.json`.
+   - **14.232 códigos CID-10 oficiais** (A00.0 a Z99.9) importados diretamente no SQLite `equipe/data/neurologia.sqlite3`.
+   - 55 testes automatizados passando (`php artisan test`), Pint limpo, e novo build de produção do frontend gerado e pronto em `public_html/visitas/`.
 
 ## Primeiro deploy real: 404 no login (2026-08-15)
 O login falhou com 404. Duas causas reais, ambas corrigidas e validadas:

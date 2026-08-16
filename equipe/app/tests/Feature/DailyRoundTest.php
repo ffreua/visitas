@@ -102,4 +102,33 @@ class DailyRoundTest extends TestCase
             'assigned_physician_id' => $inactive->id,
         ])->assertStatus(422);
     }
+
+    public function test_daily_rounds_eager_load_assigned_physician_details(): void
+    {
+        $physician = User::factory()->create(['full_name' => 'Dr. Fernando']);
+        $this->actingAs($physician);
+
+        CID10::create(['code' => 'G40.9', 'description' => 'Epilepsia', 'category' => 'G40', 'normalized_description' => 'epilepsia']);
+        $patient = Patient::create(['medical_record_number' => '999888', 'full_name' => 'Paciente Eager', 'date_of_birth' => '1990-01-01']);
+
+        $admission = $this->postJson('/api/admissions', [
+            'patient_id' => $patient->id, 'admission_at' => now()->toDateTimeString(),
+            'care_type' => 'INSTITUTIONAL', 'followup_mode' => 'ONGOING', 'payer_type' => 'PRIVATE',
+            'suspected_cid_code' => 'G40.9',
+        ])->assertCreated()->json();
+
+        $this->postJson("/api/admissions/{$admission['id']}/rounds/assign", [
+            'assigned_physician_id' => $physician->id,
+        ])->assertOk();
+
+        $detail = $this->getJson("/api/admissions/{$admission['id']}")->assertOk()->json();
+        $this->assertNotEmpty($detail['daily_rounds']);
+        $this->assertNotNull($detail['daily_rounds'][0]['assigned_physician']);
+        $this->assertSame('Dr. Fernando', $detail['daily_rounds'][0]['assigned_physician']['full_name']);
+
+        $list = $this->getJson('/api/admissions')->assertOk()->json();
+        $item = collect($list['data'])->firstWhere('id', $admission['id']);
+        $this->assertNotNull($item['daily_rounds'][0]['assigned_physician']);
+        $this->assertSame('Dr. Fernando', $item['daily_rounds'][0]['assigned_physician']['full_name']);
+    }
 }

@@ -34,10 +34,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <form className="card" style={{ width: '100%', maxWidth: 380 }} onSubmit={handleSubmit}>
-        <h1 style={{ fontSize: '1.2rem', marginTop: 0 }}>Neurologia Hospitalar</h1>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem', marginTop: -8 }}>
+        <h1 style={{ fontSize: '1.25rem', marginTop: 0, lineHeight: 1.3 }}>Neurologia Hospitalar Equipe Dr Freua</h1>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem', marginTop: -6 }}>
           Acesso restrito à equipe.
         </p>
 
@@ -72,6 +72,10 @@ export default function LoginPage() {
           {submitting ? 'Entrando…' : 'Entrar'}
         </button>
       </form>
+
+      <div style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 20 }}>
+        Desenvolvido por Dr Fernando Freua
+      </div>
     </div>
   )
 }

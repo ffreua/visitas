@@ -9,6 +9,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - `DEPLOYMENT_HOSTGATOR.md` reescrito para um fluxo sem terminal (upload direto via cPanel File Manager).
 
 ### Fixed
+- **Atribuição do médico responsável na visita diária**:
+  - `frontend/src/lib/format.js`: corrigido cálculo de data em `todayISODate()`, `isSameLocalDate()` e `formatDate()` para usar a data local do navegador em vez de UTC (em UTC-3, requisições após as 21:00 viravam o dia seguinte no frontend e não encontravam a visita criada para hoje no backend).
+  - `AdmissionController.php`: `self::EAGER` atualizado para carregar `dailyRounds.assignedPhysician` e `dailyRounds.completer`. Fallback de segurança no frontend adicionado.
 - **Login retornava 404 em produção**: o `baseURL` do Axios era `/api` (absoluto a partir da raiz do domínio), então em `drfernandofreua.com.br/visitas` toda chamada de API caía no outro site hospedado no `public_html`. Agora usa `${basePath}/api`. Mesmo erro corrigido no download de exportação.
 - `public_html/visitas/index.php` aceita a pasta `equipe/` tanto na raiz da conta quanto dentro de `private/` (era só a raiz; no servidor real está em `private/`), define o public path a partir de si mesmo e falha com mensagem clara se não encontrar o Laravel.
 - `.htaccess`: `DirectoryIndex index.php`, garantindo que `/visitas/` passe pelo Laravel e emita o cookie `XSRF-TOKEN` (sem isso, o primeiro login podia tomar 419).
@@ -17,6 +20,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Testado o build de produção real com o prefixo `/visitas/` de ponta a ponta (não só configurado): corrigida a estrutura de pastas (build fica junto com `index.php`, sem subpasta `build/` própria, para bater com os caminhos de asset que o Vite gera) e um redirect absoluto no `api.js` que ignorava o prefixo `/visitas` ao lidar com sessão expirada (levaria a um 404 em produção toda vez que a sessão expirasse).
 
 ### Added
+- Importação completa de **14.232 códigos CID-10 oficiais** (A00.0 a Z99.9) a partir de `cid10.json` com suporte a JSON e CSV no comando `cid10:import` e `CID10Seeder`.
 - Restore de backup (`php artisan neurologia:restore`, CLI-only por segurança) e Zona de Perigo (zerar dados clínicos preservando referências, com backup verificado obrigatório antes).
 - Tela `/admin/sistema` (integrity_check, lista de backups, zona de perigo).
 - `public_html/index.php` e `.htaccess` reais para o deploy em produção.

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import api from '../lib/api'
 import Autocomplete from '../components/Autocomplete'
+import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime, todayISODate, isSameLocalDate } from '../lib/format'
 
 const DELETE_REASONS = [
@@ -14,6 +15,7 @@ const DELETE_REASONS = [
 export default function AdmissionDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [admission, setAdmission] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -64,7 +66,20 @@ export default function AdmissionDetailPage() {
   async function handleAssign(physicianId) {
     if (!physicianId) return
     await withBusy(async () => {
-      await api.post(`/admissions/${id}/rounds/assign`, { assigned_physician_id: physicianId })
+      const res = await api.post(`/admissions/${id}/rounds/assign`, { assigned_physician_id: physicianId })
+      if (res.data) {
+        setAdmission((prev) => {
+          if (!prev) return prev
+          const rounds = [...(prev.daily_rounds || [])]
+          const idx = rounds.findIndex((r) => isSameLocalDate(r.round_date, today))
+          if (idx >= 0) {
+            rounds[idx] = res.data
+          } else {
+            rounds.unshift(res.data)
+          }
+          return { ...prev, daily_rounds: rounds }
+        })
+      }
     })
   }
 
@@ -85,7 +100,20 @@ export default function AdmissionDetailPage() {
 
   async function handleCompleteRound() {
     await withBusy(async () => {
-      await api.post(`/admissions/${id}/rounds/complete`)
+      const res = await api.post(`/admissions/${id}/rounds/complete`)
+      if (res.data) {
+        setAdmission((prev) => {
+          if (!prev) return prev
+          const rounds = [...(prev.daily_rounds || [])]
+          const idx = rounds.findIndex((r) => isSameLocalDate(r.round_date, today))
+          if (idx >= 0) {
+            rounds[idx] = res.data
+          } else {
+            rounds.unshift(res.data)
+          }
+          return { ...prev, daily_rounds: rounds }
+        })
+      }
     })
   }
 
@@ -169,30 +197,76 @@ export default function AdmissionDetailPage() {
       </div>
 
       {admission.status === 'ACTIVE' && (
-        <div className="card">
-          <div className="section-title" style={{ marginTop: 0 }}>Visita de hoje</div>
+        <div className="card" style={{ border: todaysRound?.completed_at ? '1px solid #16a34a' : '1px solid var(--color-border)' }}>
+          <div className="section-title" style={{ marginTop: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Visita de hoje</span>
+            {todaysRound?.completed_at ? (
+              <span className="badge badge-success">✓ Realizada</span>
+            ) : (
+              <span className="badge badge-warning">Pendente</span>
+            )}
+          </div>
+
           {todaysRound?.assigned_physician_id ? (
-            <div>Responsável: {todaysRound.assigned_physician?.full_name}</div>
+            <div style={{ padding: '8px 12px', background: 'var(--color-bg)', borderRadius: 6, marginBottom: 8, fontSize: '0.92rem' }}>
+              <strong>Responsável hoje:</strong>{' '}
+              <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
+                {todaysRound.assigned_physician?.full_name || physicians.find((p) => p.id === todaysRound.assigned_physician_id)?.full_name || 'Médico atribuído'}
+              </span>
+            </div>
           ) : (
-            <div className="alert alert-warning">Responsável hoje: não definido</div>
+            <div className="alert alert-warning" style={{ marginBottom: 8 }}>
+              Responsável hoje: <strong>não definido</strong>
+            </div>
           )}
-          <select
-            className="input"
-            style={{ marginTop: 8 }}
-            value={todaysRound?.assigned_physician_id || ''}
-            disabled={busy}
-            onChange={(e) => handleAssign(Number(e.target.value))}
-          >
-            <option value="" disabled>Atribuir responsável…</option>
-            {physicians.map((p) => (
-              <option key={p.id} value={p.id}>{p.full_name}</option>
-            ))}
-          </select>
+
+          {user && todaysRound?.assigned_physician_id !== user.id && (
+            <button
+              type="button"
+              className="btn btn-outline btn-block"
+              style={{ marginBottom: 8, borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+              disabled={busy}
+              onClick={() => handleAssign(user.id)}
+            >
+              👤 Assumir visita hoje ({user.full_name})
+            </button>
+          )}
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+              {todaysRound?.assigned_physician_id ? 'Reatribuir para outro médico:' : 'Atribuir a outro médico da equipe:'}
+            </label>
+            <select
+              className="input"
+              value={todaysRound?.assigned_physician_id || ''}
+              disabled={busy}
+              onChange={(e) => {
+                const val = Number(e.target.value)
+                if (val) handleAssign(val)
+              }}
+            >
+              <option value="" disabled>Selecione um médico na lista…</option>
+              {physicians.map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
+          </div>
+
           {todaysRound?.completed_at ? (
-            <div className="badge badge-success">Visita realizada em {formatDateTime(todaysRound.completed_at)}</div>
+            <div style={{ marginTop: 8, padding: '10px 12px', background: '#ecfdf5', borderRadius: 6, border: '1px solid #a7f3d0', color: '#065f46', fontSize: '0.9rem' }}>
+              ✓ <strong>Visita realizada</strong> por{' '}
+              {todaysRound.completer?.full_name || todaysRound.assigned_physician?.full_name || 'Médico'}{' '}
+              em {formatDateTime(todaysRound.completed_at)}
+            </div>
           ) : (
-            <button className="btn btn-primary" style={{ marginTop: 8 }} disabled={busy} onClick={handleCompleteRound}>
-              ✓ Visita realizada
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              style={{ marginTop: 8, padding: '10px 16px', fontSize: '0.95rem' }}
+              disabled={busy}
+              onClick={handleCompleteRound}
+            >
+              ✓ Assinar Visita Realizada Hoje
             </button>
           )}
         </div>

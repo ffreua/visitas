@@ -44,7 +44,7 @@ class DailyRoundController extends Controller
 
         AuditLogger::log('ASSIGN_ROUND', 'DailyRound', $round->id);
 
-        return response()->json($round->load('assignedPhysician'));
+        return response()->json($round->load(['assignedPhysician', 'completer']));
     }
 
     public function complete(Request $request, Admission $admission)
@@ -56,6 +56,11 @@ class DailyRoundController extends Controller
         ]);
 
         $round = $this->todaysRound($admission);
+        if (! $round->assigned_physician_id) {
+            $round->assigned_physician_id = Auth::id();
+            $round->assigned_by = Auth::id();
+            $round->assigned_at = now();
+        }
         $round->completed_by = Auth::id();
         $round->completed_at = now();
         if (isset($data['daily_note'])) {
@@ -65,6 +70,6 @@ class DailyRoundController extends Controller
 
         AuditLogger::log('COMPLETE_ROUND', 'DailyRound', $round->id);
 
-        return response()->json($round->load('completer'));
+        return response()->json($round->load(['assignedPhysician', 'completer']));
     }
 }

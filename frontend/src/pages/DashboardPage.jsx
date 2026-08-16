@@ -49,14 +49,20 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{today}</div>
-        {total !== null && <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{total} caso{total === 1 ? '' : 's'} ativo{total === 1 ? '' : 's'}</div>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>{today}</div>
+          {total !== null && (
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--color-text)', letterSpacing: '-0.02em' }}>
+              {total} caso{total === 1 ? '' : 's'} ativo{total === 1 ? '' : 's'}
+            </div>
+          )}
+        </div>
       </div>
 
       <input
-        className="input"
-        placeholder="Buscar por nome ou prontuário"
+        className="search-input"
+        placeholder="Buscar por nome ou prontuário…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ marginBottom: 12 }}
@@ -66,6 +72,7 @@ export default function DashboardPage() {
         {FILTERS.map((f) => (
           <button
             key={f.key}
+            type="button"
             className={`filter-chip ${activeFilter === f.key ? 'active' : ''}`}
             onClick={() => setActiveFilter(f.key)}
           >
@@ -74,14 +81,17 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <Link to="/novo" className="btn btn-primary btn-block" style={{ marginBottom: 12 }}>
-        + Novo atendimento
+      <Link to="/novo" className="btn-new-admission">
+        <span>➕</span> Novo Atendimento
       </Link>
 
       {loading ? (
-        <div className="empty-state">Carregando…</div>
+        <div className="empty-state">Carregando casos…</div>
       ) : admissions.length === 0 ? (
-        <div className="empty-state">Nenhum caso encontrado com esse filtro.</div>
+        <div className="empty-state">
+          <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>📋</div>
+          <div>Nenhum caso encontrado com esse filtro.</div>
+        </div>
       ) : (
         admissions.map((admission) => <AdmissionCard key={admission.id} admission={admission} />)
       )}

@@ -2,21 +2,21 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import api from '../lib/api'
 import Autocomplete from '../components/Autocomplete'
-import { formatDate } from '../lib/format'
+import { formatDate, nowLocalISOString } from '../lib/format'
 
-const emptyForm = {
-  admission_at: new Date().toISOString().slice(0, 16),
+const getEmptyForm = () => ({
+  admission_at: nowLocalISOString(),
   care_type: 'INSTITUTIONAL',
   followup_mode: 'ONGOING',
   payer_type: 'PRIVATE',
   health_plan_id: null,
   requesting_specialty_id: null,
-  consult_requested_at: new Date().toISOString().slice(0, 16),
+  consult_requested_at: nowLocalISOString(),
   unit: '',
   bed: '',
   brief_history: '',
   suspected_cid_code: '',
-}
+})
 
 export default function NewAdmissionPage() {
   const navigate = useNavigate()
@@ -31,7 +31,7 @@ export default function NewAdmissionPage() {
   const [regName, setRegName] = useState('')
   const [regDob, setRegDob] = useState('')
 
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(getEmptyForm)
   const [selectedPlanLabel, setSelectedPlanLabel] = useState('')
   const [selectedCidLabel, setSelectedCidLabel] = useState('')
   const [selectedSpecialtyLabel, setSelectedSpecialtyLabel] = useState('')

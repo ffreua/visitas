@@ -4,17 +4,51 @@ namespace Database\Seeders;
 
 use App\Models\CID10;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CID10Seeder extends Seeder
 {
-    /**
-     * Conjunto inicial de códigos frequentes em Neurologia hospitalar, para
-     * desenvolvimento/testes. A tabela completa de CID-10 deve ser importada
-     * em produção via `php artisan cid10:import {arquivo.csv}`.
-     */
     public function run(): void
     {
+        $jsonPath = base_path('../data/cid10.json');
+
+        if (is_readable($jsonPath)) {
+            $json = json_decode(file_get_contents($jsonPath), true);
+            if (is_array($json) && ! empty($json)) {
+                $records = [];
+                foreach ($json as $item) {
+                    $values = array_values($item);
+                    if (count($values) < 2) {
+                        continue;
+                    }
+                    $code = strtoupper(trim($values[0]));
+                    $desc = trim($values[1]);
+                    $chapter = isset($values[2]) ? trim($values[2]) : null;
+
+                    if (! empty($code) && ! empty($desc)) {
+                        $records[$code] = [
+                            'code' => $code,
+                            'description' => $desc,
+                            'category' => Str::substr($code, 0, 3),
+                            'chapter' => $chapter ?: null,
+                            'normalized_description' => Str::of($desc)->ascii()->lower()->toString(),
+                        ];
+                    }
+                }
+
+                foreach (array_chunk(array_values($records), 500) as $chunk) {
+                    DB::table('cid10')->upsert(
+                        $chunk,
+                        ['code'],
+                        ['description', 'category', 'chapter', 'normalized_description']
+                    );
+                }
+
+                return;
+            }
+        }
+
         $codes = [
             ['G40.9', 'Epilepsia, não especificada', 'Doenças do sistema nervoso'],
             ['G40.0', 'Epilepsia e síndromes epilépticas idiopáticas relacionadas com localização', 'Doenças do sistema nervoso'],

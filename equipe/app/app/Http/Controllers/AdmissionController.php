@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 
 class AdmissionController extends Controller
 {
-    private const EAGER = ['patient', 'healthPlan', 'requestingSpecialty', 'diagnoses', 'pendingItems', 'dailyRounds'];
+    private const EAGER = ['patient', 'healthPlan', 'requestingSpecialty', 'diagnoses', 'pendingItems', 'dailyRounds.assignedPhysician', 'dailyRounds.completer'];
 
     private const ACTIVE_ADMISSION_CONFLICT_MESSAGE = 'Este paciente já possui acompanhamento ativo.';
 

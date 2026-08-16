@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\CID10;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -10,16 +9,15 @@ use Illuminate\Support\Str;
 class Cid10Import extends Command
 {
     /**
-     * CSV esperado (com cabeçalho): code,description,chapter
-     * Ex.: G40.9,"Epilepsia, não especificada","Doenças do sistema nervoso"
+     * Suporta CSV (colunas code,description,chapter) ou JSON (array de objetos).
      */
-    protected $signature = 'cid10:import {file : Caminho do CSV com colunas code,description,chapter}';
+    protected $signature = 'cid10:import {file? : Caminho do arquivo JSON ou CSV (padrão: ../data/cid10.json)}';
 
-    protected $description = 'Importa a tabela CID-10 completa a partir de um CSV local (sem dependência de API externa)';
+    protected $description = 'Importa a tabela CID-10 a partir de um arquivo JSON ou CSV local';
 
     public function handle(): int
     {
-        $path = $this->argument('file');
+        $path = $this->argument('file') ?: base_path('../data/cid10.json');
 
         if (! is_readable($path)) {
             $this->error("Arquivo não encontrado ou sem permissão de leitura: {$path}");
@@ -27,40 +25,86 @@ class Cid10Import extends Command
             return self::FAILURE;
         }
 
-        $handle = fopen($path, 'r');
-        $header = fgetcsv($handle);
+        $records = [];
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
-        if (! $header || array_diff(['code', 'description', 'chapter'], $header)) {
-            $this->error('CSV deve conter as colunas: code, description, chapter');
+        if ($ext === 'json') {
+            $json = json_decode(file_get_contents($path), true);
+            if (! is_array($json)) {
+                $this->error('JSON inválido ou corrompido.');
+
+                return self::FAILURE;
+            }
+
+            foreach ($json as $item) {
+                if (isset($item['code']) && isset($item['description'])) {
+                    $code = strtoupper(trim($item['code']));
+                    $desc = trim($item['description']);
+                    $chapter = $item['chapter'] ?? null;
+                } else {
+                    $values = array_values($item);
+                    if (count($values) < 2) {
+                        continue;
+                    }
+                    $code = strtoupper(trim($values[0]));
+                    $desc = trim($values[1]);
+                    $chapter = isset($values[2]) ? trim($values[2]) : null;
+                }
+
+                if (! empty($code) && ! empty($desc)) {
+                    $records[$code] = [
+                        'code' => $code,
+                        'description' => $desc,
+                        'category' => Str::substr($code, 0, 3),
+                        'chapter' => $chapter ?: null,
+                        'normalized_description' => Str::of($desc)->ascii()->lower()->toString(),
+                    ];
+                }
+            }
+        } else {
+            $handle = fopen($path, 'r');
+            $header = fgetcsv($handle);
+
+            if (! $header || array_diff(['code', 'description'], array_slice($header, 0, 2))) {
+                $this->error('CSV deve conter as colunas: code, description (e opcionalmente chapter)');
+                fclose($handle);
+
+                return self::FAILURE;
+            }
+
+            while (($row = fgetcsv($handle)) !== false) {
+                $item = array_combine($header, $row);
+                $code = strtoupper(trim($item['code']));
+                $desc = trim($item['description']);
+                $chapter = isset($item['chapter']) ? trim($item['chapter']) : null;
+
+                if (! empty($code) && ! empty($desc)) {
+                    $records[$code] = [
+                        'code' => $code,
+                        'description' => $desc,
+                        'category' => Str::substr($code, 0, 3),
+                        'chapter' => $chapter ?: null,
+                        'normalized_description' => Str::of($desc)->ascii()->lower()->toString(),
+                    ];
+                }
+            }
             fclose($handle);
-
-            return self::FAILURE;
         }
 
-        $count = 0;
+        $total = count($records);
+        $this->info("Importando {$total} códigos CID-10...");
 
-        DB::transaction(function () use ($handle, $header, &$count) {
-            while (($row = fgetcsv($handle)) !== false) {
-                $record = array_combine($header, $row);
-                $code = strtoupper(trim($record['code']));
-
-                CID10::updateOrCreate(
-                    ['code' => $code],
-                    [
-                        'description' => trim($record['description']),
-                        'category' => Str::substr($code, 0, 3),
-                        'chapter' => trim($record['chapter']) ?: null,
-                        'normalized_description' => Str::of($record['description'])->ascii()->lower()->toString(),
-                    ]
+        DB::transaction(function () use ($records) {
+            foreach (array_chunk(array_values($records), 500) as $chunk) {
+                DB::table('cid10')->upsert(
+                    $chunk,
+                    ['code'],
+                    ['description', 'category', 'chapter', 'normalized_description']
                 );
-
-                $count++;
             }
         });
 
-        fclose($handle);
-
-        $this->info("Importação concluída: {$count} códigos CID-10 processados.");
+        $this->info("Importação concluída: {$total} códigos CID-10 processados com sucesso.");
 
         return self::SUCCESS;
     }

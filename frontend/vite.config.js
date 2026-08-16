@@ -24,8 +24,8 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
         id: basePath,
-        name: 'Neurologia Hospitalar',
-        short_name: 'Neurologia',
+        name: 'Neurologia Hospitalar Equipe Dr Freua',
+        short_name: 'Neurologia - Dr Freua',
         description: 'Gestão dos pacientes acompanhados pela equipe de Neurologia hospitalar.',
         start_url: basePath,
         scope: basePath,
