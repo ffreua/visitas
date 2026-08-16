@@ -44,3 +44,6 @@ Thumbs.db
 
 # Arquivos internos do Claude Code (locks de sessão, etc.) — nunca versionar
 .claude/
+
+# Pacotes de upload gerados localmente (nunca versionados)
+*.zip
