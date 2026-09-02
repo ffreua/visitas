@@ -432,9 +432,13 @@ textarea.input {
   padding: 12px 14px;
   margin-bottom: 12px;
   font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  line-height: 1.45;
+
+  /* Era "display: flex", o que transformava CADA nó do alerta (trechos de
+     texto e botões) num item de flex lado a lado — um link no meio da
+     frase virava uma coluna à direita, picotando o texto. Alerta é texto
+     corrido; quem precisa de layout usa um contêiner próprio dentro. */
+  display: block;
 }
 
 .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
@@ -504,6 +508,30 @@ textarea.input {
   z-index: 100;
   overflow: hidden;
   animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Sem um teto de altura, o menu do admin (mais itens que o do médico)
+     ultrapassa a tela e o excesso fica inacessível: "overflow: hidden"
+     recorta e nada rola. O drawer vira uma coluna com cabeçalho e rodapé
+     fixos e a lista rolando no meio.
+     dvh acompanha a barra do navegador no celular; vh fica de fallback. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px);
+}
+
+.menu-header,
+.menu-footer {
+  flex: 0 0 auto;
+}
+
+.menu-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* Impede que o "scroll chaining" role a página atrás quando a lista
+     chega ao fim. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .menu-header {
@@ -584,6 +612,7 @@ textarea.input {
 
 .menu-footer {
   padding: 10px 12px 14px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--color-border);
 }
 

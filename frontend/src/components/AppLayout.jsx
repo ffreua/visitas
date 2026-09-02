@@ -38,89 +38,98 @@ export default function AppLayout() {
               <span className="menu-user-role">{user?.role === 'ADMIN' ? 'Admin' : 'Médico'}</span>
             </div>
 
-            <div className="menu-section-title">Atendimento Clínico</div>
-            <div className="menu-items-list">
-              <Link to="/" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                <div className="menu-item-content">
-                  <span className="menu-item-icon">📋</span>
-                  <span>Casos Ativos</span>
-                </div>
-                <span className="menu-item-arrow">›</span>
-              </Link>
-              <Link to="/altas" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                <div className="menu-item-content">
-                  <span className="menu-item-icon">📁</span>
-                  <span>Altas / Histórico</span>
-                </div>
-                <span className="menu-item-arrow">›</span>
-              </Link>
-              <Link to="/novo" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                <div className="menu-item-content">
-                  <span className="menu-item-icon">➕</span>
-                  <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>Novo Atendimento</span>
-                </div>
-                <span className="menu-item-arrow">›</span>
-              </Link>
-            </div>
+            <div className="menu-scroll">
+              <div className="menu-section-title">Atendimento Clínico</div>
+              <div className="menu-items-list">
+                <Link to="/" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                  <div className="menu-item-content">
+                    <span className="menu-item-icon">📋</span>
+                    <span>Casos Ativos</span>
+                  </div>
+                  <span className="menu-item-arrow">›</span>
+                </Link>
+                <Link to="/altas" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                  <div className="menu-item-content">
+                    <span className="menu-item-icon">📁</span>
+                    <span>Altas / Histórico</span>
+                  </div>
+                  <span className="menu-item-arrow">›</span>
+                </Link>
+                <Link to="/novo" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                  <div className="menu-item-content">
+                    <span className="menu-item-icon">➕</span>
+                    <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>Novo Atendimento</span>
+                  </div>
+                  <span className="menu-item-arrow">›</span>
+                </Link>
+              </div>
 
-            {user?.role === 'ADMIN' && (
-              <>
-                <div className="menu-section-title" style={{ borderTop: '1px solid var(--color-border)', marginTop: 4, paddingTop: 10 }}>
-                  Administração
-                </div>
-                <div className="menu-items-list">
-                  <Link to="/admin/dashboard" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">📊</span>
-                      <span>Indicadores & Dashboard</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                  <Link to="/admin/exportacoes" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">📥</span>
-                      <span>Exportações XLSX</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                  <Link to="/admin/equipe" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">👥</span>
-                      <span>Gestão da Equipe</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                  <Link to="/admin/planos" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">🏥</span>
-                      <span>Planos de Saúde</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                  <Link to="/admin/especialidades" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">🩺</span>
-                      <span>Especialidades</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                  <Link to="/admin/excluidos" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">🗑️</span>
-                      <span>Registros Excluídos</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                  <Link to="/admin/sistema" className="menu-item-link" onClick={() => setMenuOpen(false)}>
-                    <div className="menu-item-content">
-                      <span className="menu-item-icon">⚙️</span>
-                      <span>Sistema & Backups</span>
-                    </div>
-                    <span className="menu-item-arrow">›</span>
-                  </Link>
-                </div>
-              </>
-            )}
+              {user?.role === 'ADMIN' && (
+                <>
+                  <div className="menu-section-title" style={{ borderTop: '1px solid var(--color-border)', marginTop: 4, paddingTop: 10 }}>
+                    Administração
+                  </div>
+                  <div className="menu-items-list">
+                    <Link to="/admin/dashboard" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">📊</span>
+                        <span>Indicadores & Dashboard</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/prontuarios" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">🗂️</span>
+                        <span>Dashboard por Prontuário</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/exportacoes" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">📥</span>
+                        <span>Exportações XLSX</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/equipe" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">👥</span>
+                        <span>Gestão da Equipe</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/planos" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">🏥</span>
+                        <span>Planos de Saúde</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/especialidades" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">🩺</span>
+                        <span>Especialidades</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/excluidos" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">🗑️</span>
+                        <span>Registros Excluídos</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                    <Link to="/admin/sistema" className="menu-item-link" onClick={() => setMenuOpen(false)}>
+                      <div className="menu-item-content">
+                        <span className="menu-item-icon">⚙️</span>
+                        <span>Sistema & Backups</span>
+                      </div>
+                      <span className="menu-item-arrow">›</span>
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="menu-footer">
               <button type="button" className="btn-logout" onClick={handleLogout}>

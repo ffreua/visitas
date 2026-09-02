@@ -45,6 +45,32 @@ class AdmissionExportService
         return 'PAC-'.str_pad((string) $admission->patient_id, 5, '0', STR_PAD_LEFT);
     }
 
+    /**
+     * Colunas de identificação repetidas no início de cada aba. Com
+     * prontuário opcional (paciente cadastrado pelo número de atendimento),
+     * o prontuário sozinho já não garante que a linha seja rastreável — o
+     * número de atendimento entra ao lado dele como segunda chave.
+     *
+     * No modo pseudonimizado nenhum dos dois aparece: são identificadores
+     * do sistema do hospital, exatamente o que a pseudonimização remove.
+     *
+     * @return array<int, string>
+     */
+    private function keyHeaders(bool $pseudonymized): array
+    {
+        return $pseudonymized ? ['Código do paciente'] : ['Prontuário', 'Nº atendimento'];
+    }
+
+    /**
+     * @return array<int, string|null>
+     */
+    private function keyColumns(Admission $admission, bool $pseudonymized): array
+    {
+        return $pseudonymized
+            ? [$this->patientCode($admission)]
+            : [$admission->patient->medical_record_number, $admission->attendance_number];
+    }
+
     private function buildPatientsSheet(Spreadsheet $spreadsheet, $admissions, bool $pseudonymized): void
     {
         $sheet = $spreadsheet->createSheet();
@@ -52,7 +78,7 @@ class AdmissionExportService
 
         $headers = $pseudonymized
             ? ['Código do paciente', 'Data de nascimento']
-            : ['Prontuário', 'Nome', 'Data de nascimento'];
+            : ['Prontuário', 'Nome', 'Data de nascimento', 'Prontuário confirmado'];
         $sheet->fromArray($headers, null, 'A1');
 
         $patients = $admissions->pluck('patient')->unique('id')->values();
@@ -68,6 +94,7 @@ class AdmissionExportService
                     $patient->medical_record_number,
                     $patient->full_name,
                     optional($patient->date_of_birth)->format('Y-m-d'),
+                    $patient->hasConfirmedMedicalRecord() ? 'Sim' : 'Não',
                 ], null, "A{$row}");
             }
             $row++;
@@ -80,9 +107,10 @@ class AdmissionExportService
         $sheet->setTitle('Episodios');
 
         $headers = [
-            $pseudonymized ? 'Código do paciente' : 'Prontuário',
+            ...$this->keyHeaders($pseudonymized),
             $pseudonymized ? null : 'Paciente',
             'Entrada hospitalar', 'Encerramento Neurologia', 'Alta hospitalar',
+            'Procedência',
             'Institucional/Interconsulta', 'Avaliação única/Acompanhamento',
             'Particular/Plano', 'Plano', 'Especialidade solicitante',
             'CID suspeito', 'Diagnóstico suspeito', 'CID final', 'Diagnóstico final',
@@ -103,11 +131,12 @@ class AdmissionExportService
                 : null;
 
             $line = [
-                $pseudonymized ? $this->patientCode($admission) : $admission->patient->medical_record_number,
-                $pseudonymized ? null : $admission->patient->full_name,
+                ...$this->keyColumns($admission, $pseudonymized),
+                ...($pseudonymized ? [] : [$admission->patient->full_name]),
                 $admission->admission_at->format('Y-m-d H:i'),
                 optional($admission->neurology_followup_closed_at)->format('Y-m-d H:i'),
                 optional($admission->hospital_discharge_at)->format('Y-m-d H:i'),
+                $admission->originLabel(),
                 $admission->care_type === 'INTERCONSULT' ? 'Interconsulta' : 'Institucional',
                 $admission->followup_mode === 'SINGLE_EVALUATION' ? 'Avaliação única' : 'Acompanhamento',
                 $admission->payer_type === 'PRIVATE' ? 'Particular' : 'Plano de saúde',
@@ -122,8 +151,6 @@ class AdmissionExportService
                 $hospitalDays,
                 $admission->status === 'ACTIVE' ? 'Ativo' : 'Encerrado',
             ];
-            $line = array_values(array_filter($line, fn ($v, $k) => ! ($pseudonymized && $k === 1), ARRAY_FILTER_USE_BOTH));
-
             $sheet->fromArray($line, null, "A{$row}");
             $row++;
         }
@@ -133,13 +160,13 @@ class AdmissionExportService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Diagnosticos');
-        $sheet->fromArray([$pseudonymized ? 'Código do paciente' : 'Prontuário', 'Fase', 'CID', 'Descrição', 'Principal'], null, 'A1');
+        $sheet->fromArray([...$this->keyHeaders($pseudonymized), 'Fase', 'CID', 'Descrição', 'Principal'], null, 'A1');
 
         $row = 2;
         foreach ($admissions as $admission) {
             foreach ($admission->diagnoses as $diagnosis) {
                 $sheet->fromArray([
-                    $pseudonymized ? $this->patientCode($admission) : $admission->patient->medical_record_number,
+                    ...$this->keyColumns($admission, $pseudonymized),
                     $diagnosis->phase === 'SUSPECTED' ? 'Hipótese' : 'Final',
                     $diagnosis->cid_code,
                     $diagnosis->description_snapshot,
@@ -154,13 +181,13 @@ class AdmissionExportService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Visitas');
-        $sheet->fromArray([$pseudonymized ? 'Código do paciente' : 'Prontuário', 'Data', 'Responsável atribuído', 'Visita realizada por', 'Horário da visita'], null, 'A1');
+        $sheet->fromArray([...$this->keyHeaders($pseudonymized), 'Data', 'Responsável atribuído', 'Visita realizada por', 'Horário da visita'], null, 'A1');
 
         $row = 2;
         foreach ($admissions as $admission) {
             foreach ($admission->dailyRounds as $round) {
                 $sheet->fromArray([
-                    $pseudonymized ? $this->patientCode($admission) : $admission->patient->medical_record_number,
+                    ...$this->keyColumns($admission, $pseudonymized),
                     $round->round_date->format('Y-m-d'),
                     $round->assignedPhysician?->full_name,
                     $round->completer?->full_name,
@@ -175,13 +202,13 @@ class AdmissionExportService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Pendencias');
-        $sheet->fromArray([$pseudonymized ? 'Código do paciente' : 'Prontuário', 'Descrição', 'Status', 'Criada em', 'Resolvida em'], null, 'A1');
+        $sheet->fromArray([...$this->keyHeaders($pseudonymized), 'Descrição', 'Status', 'Criada em', 'Resolvida em'], null, 'A1');
 
         $row = 2;
         foreach ($admissions as $admission) {
             foreach ($admission->pendingItems as $item) {
                 $sheet->fromArray([
-                    $pseudonymized ? $this->patientCode($admission) : $admission->patient->medical_record_number,
+                    ...$this->keyColumns($admission, $pseudonymized),
                     $item->description,
                     $item->status,
                     optional($item->created_at)->format('Y-m-d H:i'),

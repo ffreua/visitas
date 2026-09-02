@@ -14,8 +14,23 @@ class Admission extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * Procedência: de onde o paciente veio ao entrar sob acompanhamento.
+     * Vocabulário FECHADO de propósito — texto livre aqui inviabilizaria
+     * comparar séries ao longo do tempo ("PS", "P.S.", "pronto socorro"
+     * viram três categorias distintas na análise).
+     */
+    public const ORIGINS = [
+        'EMERGENCY_ROOM' => 'Pronto Socorro',
+        'ICU' => 'UTI',
+        'WARD' => 'Enfermaria',
+        'OPERATING_ROOM' => 'Centro Cirúrgico',
+        'OTHER' => 'Outro',
+    ];
+
     protected $fillable = [
         'patient_id',
+        'attendance_number',
         'admission_at',
         'hospital_discharge_at',
         'neurology_followup_started_at',
@@ -58,14 +73,36 @@ class Admission extends Model
     {
         static::creating(function (Admission $admission) {
             $admission->uuid ??= (string) Str::uuid();
+            $admission->attendance_number = static::normalizeAttendanceNumber($admission->attendance_number);
             $admission->neurology_followup_started_at ??= $admission->admission_at ?? now();
             $admission->status ??= 'ACTIVE';
             $admission->version ??= 1;
         });
 
         static::updating(function (Admission $admission) {
+            if ($admission->isDirty('attendance_number')) {
+                $admission->attendance_number = static::normalizeAttendanceNumber($admission->attendance_number);
+            }
+
             $admission->version = $admission->getOriginal('version') + 1;
         });
+    }
+
+    /**
+     * Mesma normalização do prontuário (trim/maiúsculas/sem espaços) — o
+     * número de atendimento também é digitado à mão e serve de chave de
+     * busca, então "  12 345 " e "12345" precisam colidir no índice único
+     * em vez de virarem dois episódios distintos.
+     */
+    public static function normalizeAttendanceNumber(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = Str::of($value)->trim()->upper()->replaceMatches('/\s+/', '')->toString();
+
+        return $normalized === '' ? null : $normalized;
     }
 
     /**
@@ -137,6 +174,21 @@ class Admission extends Model
     public function todaysRound()
     {
         return $this->dailyRounds()->whereDate('round_date', now()->toDateString())->first();
+    }
+
+    /**
+     * Rótulo em português da procedência. Episódios anteriores ao campo
+     * ficam com null; qualquer valor fora do vocabulário (não deveria
+     * existir, a validação barra) é devolvido como veio, para a tela nunca
+     * esconder um dado que está no banco.
+     */
+    public function originLabel(): ?string
+    {
+        if ($this->origin === null) {
+            return null;
+        }
+
+        return self::ORIGINS[$this->origin] ?? $this->origin;
     }
 
     public function isSingleEvaluation(): bool

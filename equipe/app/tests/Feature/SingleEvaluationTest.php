@@ -37,6 +37,7 @@ class SingleEvaluationTest extends TestCase
             'consult_requested_at' => now()->toDateTimeString(),
             'followup_mode' => 'SINGLE_EVALUATION',
             'payer_type' => 'PRIVATE',
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ])->assertCreated()->json();
 

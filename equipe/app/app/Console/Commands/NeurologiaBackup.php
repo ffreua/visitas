@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Services\BackupRetentionPolicy;
 use App\Services\BackupService;
 use Illuminate\Console\Command;
 
@@ -12,7 +11,7 @@ class NeurologiaBackup extends Command
 
     protected $description = 'Cria um backup consistente do SQLite (checkpoint WAL + cópia + checksum) e aplica a retenção configurada';
 
-    public function handle(BackupService $service, BackupRetentionPolicy $policy): int
+    public function handle(BackupService $service): int
     {
         try {
             $result = $service->create();
@@ -24,9 +23,11 @@ class NeurologiaBackup extends Command
 
         $this->info("Backup criado: {$result['filename']} ({$result['size']} bytes, sha256={$result['checksum']})");
 
-        $removed = $service->applyRetention($policy);
-        if ($removed > 0) {
-            $this->line("{$removed} backup(s) antigo(s) removido(s) pela política de retenção.");
+        // A retenção roda dentro de create() — vale para o backup criado
+        // aqui e para os criados pelo painel, que é onde eles realmente
+        // nascem nesta hospedagem (sem cron).
+        if ($result['pruned'] > 0) {
+            $this->line("{$result['pruned']} backup(s) antigo(s) removido(s) pela política de retenção.");
         }
 
         return self::SUCCESS;

@@ -29,7 +29,11 @@ export default function ClosedListPage() {
             <Link to={`/atendimentos/${a.id}`} key={a.id} className="timeline-entry" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
               <div style={{ fontWeight: 700 }}>{a.patient?.full_name}</div>
               <div className="meta" style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
-                Prontuário {a.patient?.medical_record_number} · Encerrado em {formatDate(a.neurology_followup_closed_at)}
+                {a.patient?.medical_record_number
+                  ? `Prontuário ${a.patient.medical_record_number}`
+                  : 'Prontuário pendente'}
+                {a.attendance_number ? ` · Atend. ${a.attendance_number}` : ''}
+                {' · '}Encerrado em {formatDate(a.neurology_followup_closed_at)}
               </div>
               {finalDx && <div style={{ fontSize: '0.9rem' }}>{finalDx.cid_code} — {finalDx.description_snapshot}</div>}
             </Link>

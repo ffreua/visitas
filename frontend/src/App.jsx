@@ -13,6 +13,7 @@ import HealthPlansAdminPage from './pages/admin/HealthPlansAdminPage'
 import MedicalSpecialtiesAdminPage from './pages/admin/MedicalSpecialtiesAdminPage'
 import TrashedAdminPage from './pages/admin/TrashedAdminPage'
 import DashboardAdminPage from './pages/admin/DashboardAdminPage'
+import PatientDashboardAdminPage from './pages/admin/PatientDashboardAdminPage'
 import ExportsAdminPage from './pages/admin/ExportsAdminPage'
 import SystemAdminPage from './pages/admin/SystemAdminPage'
 import OfflineBanner from './components/OfflineBanner'
@@ -37,6 +38,7 @@ export default function App() {
 
               <Route element={<ProtectedRoute adminOnly />}>
                 <Route path="/admin/dashboard" element={<DashboardAdminPage />} />
+                <Route path="/admin/prontuarios" element={<PatientDashboardAdminPage />} />
                 <Route path="/admin/exportacoes" element={<ExportsAdminPage />} />
                 <Route path="/admin/equipe" element={<UsersAdminPage />} />
                 <Route path="/admin/planos" element={<HealthPlansAdminPage />} />

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExportController;
+use App\Http\Controllers\Admin\PatientDashboardController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\HealthPlanController;
@@ -15,6 +16,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('/users/{user}/reactivate', [UserController::class, 'reactivate'])->name('users.reactivate');
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])
+        ->middleware('throttle:reauth')->name('users.destroy');
 
     Route::get('/health-plans', [HealthPlanController::class, 'index'])->name('health-plans.index');
     Route::post('/health-plans', [HealthPlanController::class, 'store'])->name('health-plans.store');
@@ -27,11 +30,26 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/system/integrity-check', [SystemController::class, 'integrityCheck'])->name('system.integrity-check');
     Route::get('/system/backups', [SystemController::class, 'backups'])->name('system.backups');
+    Route::post('/system/backups/prune', [SystemController::class, 'pruneBackups'])
+        ->middleware('throttle:reauth')->name('system.backups.prune');
+    Route::delete('/system/backups/{filename}', [SystemController::class, 'deleteBackup'])
+        ->where('filename', '[A-Za-z0-9_.\-]+')
+        ->middleware('throttle:reauth')->name('system.backups.destroy');
     Route::post('/system/reset-clinical-data', [SystemController::class, 'resetClinicalData'])
         ->middleware('throttle:reauth')->name('system.reset-clinical-data');
 
+    Route::get('/system/migration-status', [SystemController::class, 'migrationStatus'])->name('system.migration-status');
+    Route::post('/system/apply-migrations', [SystemController::class, 'applyMigrations'])
+        ->middleware('throttle:reauth')->name('system.apply-migrations');
+
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/data-quality', [DashboardController::class, 'dataQuality'])->name('dashboard.data-quality');
+
+    // Dashboard por prontuário — trajetória de um paciente e o detalhe de
+    // cada atendimento. Registrado antes de nada com {patient} solto para
+    // não colidir com /dashboard/data-quality.
+    Route::get('/dashboard/patients', [PatientDashboardController::class, 'index'])->name('dashboard.patients.index');
+    Route::get('/dashboard/patients/{patient}', [PatientDashboardController::class, 'show'])->name('dashboard.patients.show');
 
     Route::post('/exports', [ExportController::class, 'store'])->middleware('throttle:exports')->name('exports.store');
     Route::get('/exports/{token}/download', [ExportController::class, 'download'])->name('exports.download');

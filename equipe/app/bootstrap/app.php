@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\ConfirmedMedicalRecordException;
 use App\Exceptions\StaleAdmissionException;
 use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\EnsureUserIsActive;
@@ -33,6 +34,13 @@ $app = Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (StaleAdmissionException $e, $request) {
             return response()->json(['message' => $e->getMessage()], 409);
+        });
+
+        $exceptions->render(function (ConfirmedMedicalRecordException $e, $request) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => ['medical_record_number' => [$e->getMessage()]],
+            ], 422);
         });
     })->create();
 

@@ -28,4 +28,14 @@ class PatientPolicy
     {
         return true;
     }
+
+    /**
+     * Correção de cadastro (nome, nascimento, preenchimento do prontuário
+     * ainda pendente) é parte do trabalho assistencial — a imutabilidade do
+     * prontuário já confirmado é garantida pelo model, não pela policy.
+     */
+    public function update(User $user, Patient $patient): bool
+    {
+        return true;
+    }
 }

@@ -30,6 +30,7 @@ class DashboardController extends Controller
             'filters_applied' => $filters,
             'volume' => $this->volume($admissions),
             'payers' => $this->payers($admissions),
+            'origins' => $this->origins($admissions),
             'interconsults' => $this->interconsults($admissions),
             'length_of_stay' => $this->lengthOfStay($admissions),
             'visit_coverage' => $this->visitCoverage($admissions),
@@ -56,6 +57,7 @@ class DashboardController extends Controller
         $notVisitedToday = $active->filter(fn ($a) => ! $a->dailyRounds->contains(fn ($r) => $r->round_date->toDateString() === $today && $r->completed_at));
         $closedNoFinalDx = Admission::closed()->with('diagnoses')->get()->filter(fn ($a) => $a->diagnoses->where('phase', 'FINAL')->isEmpty());
         $noPayerDefined = $active->filter(fn ($a) => ! $a->payer_type);
+        $noOrigin = $active->filter(fn ($a) => $a->origin === null);
         $longAdmissions = $active->filter(fn ($a) => $a->admission_at->diffInDays(now()) > 30);
         $oldOpenSingleEval = $active->where('followup_mode', 'SINGLE_EVALUATION')->filter(fn ($a) => $a->admission_at->diffInDays(now()) > 3);
         $oldPendingItems = $active->flatMap->pendingItems->where('status', 'OPEN')->filter(fn ($p) => $p->created_at->diffInDays(now()) > 14);
@@ -68,6 +70,7 @@ class DashboardController extends Controller
             'not_visited_today' => $notVisitedToday->count(),
             'discharges_without_final_diagnosis' => $closedNoFinalDx->count(),
             'without_payer_defined' => $noPayerDefined->count(),
+            'without_origin' => $noOrigin->count(),
             'admissions_over_30_days' => $longAdmissions->count(),
             'single_evaluations_open_over_3_days' => $oldOpenSingleEval->count(),
             'pending_items_open_over_14_days' => $oldPendingItems->count(),
@@ -112,6 +115,35 @@ class DashboardController extends Controller
             })->values();
 
         return ['private_vs_plan' => $byPayerType, 'by_plan' => $byPlan];
+    }
+
+    /**
+     * Distribuição por procedência — é o motivo de o campo ter vocabulário
+     * fechado: só assim a série é comparável ao longo do tempo. Percorre as
+     * chaves do vocabulário (e não os episódios) para que uma procedência
+     * com zero casos apareça como 0 em vez de sumir do relatório.
+     */
+    private function origins($admissions): array
+    {
+        $byOrigin = [];
+
+        foreach (Admission::ORIGINS as $code => $label) {
+            $group = $admissions->where('origin', $code);
+
+            $byOrigin[] = [
+                'origin' => $code,
+                'label' => $label,
+                'episodes' => $group->count(),
+                'median_followup_days' => Percentiles::summarize(
+                    $group->map(fn ($a) => $this->followupDays($a))->all()
+                )['median'],
+            ];
+        }
+
+        return [
+            'by_origin' => $byOrigin,
+            'not_informed' => $admissions->filter(fn ($a) => $a->origin === null)->count(),
+        ];
     }
 
     private function interconsults($admissions): array

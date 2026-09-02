@@ -2,8 +2,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import api from '../lib/api'
 import Autocomplete from '../components/Autocomplete'
+import AdmissionEditForm from '../components/AdmissionEditForm'
+import PatientEditForm from '../components/PatientEditForm'
 import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime, todayISODate, isSameLocalDate } from '../lib/format'
+import { originLabel } from '../lib/vocabulary'
 
 const DELETE_REASONS = [
   ['DUPLICATE', 'Cadastro duplicado'],
@@ -23,11 +26,23 @@ export default function AdmissionDetailPage() {
 
   const [newPending, setNewPending] = useState('')
   const [showClose, setShowClose] = useState(false)
-  const [closeForm, setCloseForm] = useState({ final_cid_code: '', discharge_outcome: '', followup_plan_documented: '' })
+  const [closeForm, setCloseForm] = useState({
+    final_cid_code: '',
+    discharge_outcome: '',
+    followup_plan_documented: '',
+    hospital_discharge_at: '',
+  })
   const [finalCidLabel, setFinalCidLabel] = useState('')
   const [showDelete, setShowDelete] = useState(false)
   const [deleteReason, setDeleteReason] = useState('DUPLICATE')
   const [deleteDetail, setDeleteDetail] = useState('')
+  const [editing, setEditing] = useState(null)
+  const [informingMrn, setInformingMrn] = useState(false)
+  // Transferência de leito/enfermaria é a alteração mais frequente do
+  // episódio (UTI → enfermaria, troca de leito) — fica como atalho no
+  // próprio cartão de Internação, sem abrir o formulário completo.
+  const [movingBed, setMovingBed] = useState(false)
+  const [bedForm, setBedForm] = useState({ unit: '', bed: '' })
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +64,14 @@ export default function AdmissionDetailPage() {
   const suspected = (admission.diagnoses || []).filter((d) => d.phase === 'SUSPECTED')
   const final = (admission.diagnoses || []).filter((d) => d.phase === 'FINAL')
   const isSingleEval = admission.followup_mode === 'SINGLE_EVALUATION'
+
+  // Espelha AdmissionController::missingForClosure. O servidor continua
+  // sendo a autoridade — isto existe para avisar ANTES de o médico
+  // preencher o formulário inteiro e tomar um erro no final.
+  const closureBlockers = [
+    !admission.patient?.medical_record_number && 'Número de prontuário',
+    !admission.patient?.date_of_birth && 'Data de nascimento',
+  ].filter(Boolean)
 
   async function withBusy(fn) {
     setBusy(true)
@@ -124,7 +147,11 @@ export default function AdmissionDetailPage() {
       return
     }
     await withBusy(async () => {
-      await api.post(`/admissions/${id}/close`, { version: admission.version, ...closeForm })
+      await api.post(`/admissions/${id}/close`, {
+        version: admission.version,
+        ...closeForm,
+        hospital_discharge_at: closeForm.hospital_discharge_at || null,
+      })
       setShowClose(false)
     })
   }
@@ -133,6 +160,19 @@ export default function AdmissionDetailPage() {
     if (!confirm('Converter esta avaliação única em acompanhamento contínuo?')) return
     await withBusy(async () => {
       await api.post(`/admissions/${id}/convert-to-followup`)
+    })
+  }
+
+  async function handleMoveBed(e) {
+    e.preventDefault()
+    await withBusy(async () => {
+      const { data } = await api.put(`/admissions/${id}`, {
+        version: admission.version,
+        unit: bedForm.unit || null,
+        bed: bedForm.bed || null,
+      })
+      setAdmission(data)
+      setMovingBed(false)
     })
   }
 
@@ -148,8 +188,49 @@ export default function AdmissionDetailPage() {
     <div>
       <h2 className="section-title" style={{ marginTop: 0 }}>{admission.patient?.full_name}</h2>
       <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: -8 }}>
-        Prontuário {admission.patient?.medical_record_number} · Nascimento {formatDate(admission.patient?.date_of_birth)}
+        {admission.patient?.medical_record_number
+          ? `Prontuário ${admission.patient.medical_record_number}`
+          : '⚠ Prontuário pendente'}
+        {admission.attendance_number ? ` · Atendimento ${admission.attendance_number}` : ''}
+        {' · '}Nascimento {formatDate(admission.patient?.date_of_birth)}
       </p>
+
+      {!admission.patient?.medical_record_number && (
+        <div className="alert alert-warning">
+          <strong>Prontuário pendente.</strong> Este paciente foi cadastrado pelo número de
+          atendimento. Assim que souber o prontuário, informe aqui — depois de confirmado ele
+          não poderá mais ser alterado.
+
+          {/* O campo abre AQUI, e não no bloco "Editar" lá embaixo: aquele
+              fica centenas de pixels abaixo da dobra, então o clique parecia
+              não fazer nada. */}
+          {!informingMrn ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              style={{ marginTop: 8 }}
+              onClick={() => setInformingMrn(true)}
+            >
+              Informar prontuário
+            </button>
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <PatientEditForm
+                patient={admission.patient}
+                onlyMedicalRecord
+                onSaved={(updatedPatient) => {
+                  setAdmission((prev) => ({ ...prev, patient: updatedPatient }))
+                  setInformingMrn(false)
+                }}
+              />
+              <button type="button" className="btn btn-outline btn-block" style={{ marginTop: 8 }}
+                onClick={() => setInformingMrn(false)}>
+                Cancelar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="badge-row">
         <span className={`badge ${admission.status === 'ACTIVE' ? 'badge-success' : 'badge-neutral'}`}>
@@ -161,10 +242,48 @@ export default function AdmissionDetailPage() {
 
       <div className="card">
         <div className="section-title" style={{ marginTop: 0 }}>Internação</div>
+        <div>Nº de atendimento: {admission.attendance_number || '—'}</div>
         <div>Entrada: {formatDateTime(admission.admission_at)}</div>
+        <div>Procedência: {originLabel(admission.origin) || 'não informada'}</div>
         {admission.hospital_discharge_at && <div>Alta hospitalar: {formatDateTime(admission.hospital_discharge_at)}</div>}
         {admission.neurology_followup_closed_at && <div>Encerramento Neurologia: {formatDateTime(admission.neurology_followup_closed_at)}</div>}
-        {(admission.unit || admission.bed) && <div>{admission.unit ? `Enfermaria ${admission.unit}` : ''} {admission.bed ? `· Leito ${admission.bed}` : ''}</div>}
+        <div>
+          {admission.unit || admission.bed
+            ? `${admission.unit ? `Enfermaria ${admission.unit}` : ''}${admission.unit && admission.bed ? ' · ' : ''}${admission.bed ? `Leito ${admission.bed}` : ''}`
+            : 'Enfermaria/leito não informados'}
+        </div>
+
+        {!movingBed ? (
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ marginTop: 8, minHeight: 36, padding: '6px 12px' }}
+            onClick={() => {
+              setBedForm({ unit: admission.unit || '', bed: admission.bed || '' })
+              setMovingBed(true)
+            }}
+          >
+            🛏️ Alterar enfermaria/leito
+          </button>
+        ) : (
+          <form onSubmit={handleMoveBed} style={{ marginTop: 8 }}>
+            <div className="form-group">
+              <label>Enfermaria / setor</label>
+              <input className="input" value={bedForm.unit} autoFocus
+                onChange={(e) => setBedForm({ ...bedForm, unit: e.target.value })}
+                placeholder="Ex.: UTI, Enfermaria 3" />
+            </div>
+            <div className="form-group">
+              <label>Leito</label>
+              <input className="input" value={bedForm.bed}
+                onChange={(e) => setBedForm({ ...bedForm, bed: e.target.value })} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="submit" className="btn btn-primary" disabled={busy}>Salvar</button>
+              <button type="button" className="btn btn-outline" onClick={() => setMovingBed(false)}>Cancelar</button>
+            </div>
+          </form>
+        )}
       </div>
 
       <div className="card">
@@ -309,6 +428,23 @@ export default function AdmissionDetailPage() {
             </button>
           ) : (
             <form onSubmit={handleClose} className="card" style={{ background: 'var(--color-bg)' }}>
+              {closureBlockers.length > 0 && (
+                <div className="alert alert-warning">
+                  <strong>Cadastro incompleto.</strong> Estes dados são obrigatórios para encerrar,
+                  porque a partir daqui o atendimento vira dado de gestão e ninguém volta para
+                  completá-lo:
+                  <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                    {closureBlockers.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                  <div style={{ marginTop: 10 }}>
+                    <PatientEditForm
+                      patient={admission.patient}
+                      onSaved={(updatedPatient) => setAdmission((prev) => ({ ...prev, patient: updatedPatient }))}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Diagnóstico final (CID-10)</label>
                 <Autocomplete
@@ -324,6 +460,15 @@ export default function AdmissionDetailPage() {
                 />
               </div>
               <div className="form-group">
+                <label>Alta hospitalar (opcional)</label>
+                <input type="datetime-local" className="input" value={closeForm.hospital_discharge_at}
+                  onChange={(e) => setCloseForm({ ...closeForm, hospital_discharge_at: e.target.value })} />
+                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  Este é o único momento em que a alta hospitalar é registrada — confira antes de
+                  confirmar. Deixe em branco se o paciente segue internado sob outra equipe.
+                </div>
+              </div>
+              <div className="form-group">
                 <label>Desfecho</label>
                 <textarea className="input" value={closeForm.discharge_outcome}
                   onChange={(e) => setCloseForm({ ...closeForm, discharge_outcome: e.target.value })} required />
@@ -334,7 +479,9 @@ export default function AdmissionDetailPage() {
                   onChange={(e) => setCloseForm({ ...closeForm, followup_plan_documented: e.target.value })} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="submit" className="btn btn-primary" disabled={busy}>Confirmar encerramento</button>
+                <button type="submit" className="btn btn-primary" disabled={busy || closureBlockers.length > 0}>
+                  Confirmar encerramento
+                </button>
                 <button type="button" className="btn btn-outline" onClick={() => setShowClose(false)}>Cancelar</button>
               </div>
             </form>
@@ -367,6 +514,41 @@ export default function AdmissionDetailPage() {
           )}
         </div>
       )}
+
+      <div className="card">
+        <div className="section-title" style={{ marginTop: 0 }}>Editar</div>
+
+        {editing === null && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-outline" onClick={() => setEditing('admission')}>
+              ✏️ Editar atendimento
+            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setEditing('patient')}>
+              👤 Editar paciente
+            </button>
+          </div>
+        )}
+
+        {editing === 'admission' && (
+          <AdmissionEditForm
+            admission={admission}
+            onCancel={() => setEditing(null)}
+            onSaved={(updated) => { setAdmission(updated); setEditing(null) }}
+          />
+        )}
+
+        {editing === 'patient' && (
+          <>
+            <PatientEditForm
+              patient={admission.patient}
+              onSaved={(updatedPatient) => setAdmission((prev) => ({ ...prev, patient: updatedPatient }))}
+            />
+            <button type="button" className="btn btn-outline btn-block" style={{ marginTop: 8 }} onClick={() => setEditing(null)}>
+              Fechar
+            </button>
+          </>
+        )}
+      </div>
 
       <Link to="/" style={{ display: 'inline-block', marginTop: 8 }}>← Voltar</Link>
     </div>

@@ -26,6 +26,7 @@ class PatientAdmissionTest extends TestCase
             'care_type' => 'INSTITUTIONAL',
             'followup_mode' => 'ONGOING',
             'payer_type' => 'PRIVATE',
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ], $overrides);
     }
@@ -43,6 +44,7 @@ class PatientAdmissionTest extends TestCase
 
         $this->postJson('/api/patients', [
             'medical_record_number' => ' 123456 ',
+            'medical_record_confirmed' => true,
             'full_name' => 'Maria da Silva',
             'date_of_birth' => '1950-01-01',
         ])->assertCreated();
@@ -51,6 +53,7 @@ class PatientAdmissionTest extends TestCase
 
         $this->postJson('/api/patients', [
             'medical_record_number' => '123456',
+            'medical_record_confirmed' => true,
             'full_name' => 'Outra Pessoa',
             'date_of_birth' => '1960-01-01',
         ])->assertStatus(422);
@@ -225,12 +228,11 @@ class PatientAdmissionTest extends TestCase
     }
 
     /**
-     * Regressão: a regra after_or_equal:admission_at em UpdateAdmissionRequest
-     * comparava contra um campo inexistente na request (admission_at só
-     * existe em StoreAdmissionRequest), virando um no-op silencioso que
-     * permitia gravar alta hospitalar anterior à entrada.
+     * A alta hospitalar é registrada uma única vez, no encerramento. Médico
+     * não corrige depois — a request recusa explicitamente, em vez de
+     * ignorar em silêncio e deixar a impressão de que salvou.
      */
-    public function test_hospital_discharge_at_cannot_be_before_admission_at_on_update(): void
+    public function test_physician_cannot_edit_the_hospital_discharge_date(): void
     {
         $this->actingAs(User::factory()->create());
 
@@ -247,7 +249,196 @@ class PatientAdmissionTest extends TestCase
 
         $this->putJson("/api/admissions/{$admission['id']}", [
             'version' => $admission['version'],
+            'hospital_discharge_at' => '2026-08-12 10:00:00',
+        ])->assertStatus(422)->assertJsonValidationErrors('hospital_discharge_at');
+
+        $this->assertNull($admission['hospital_discharge_at']);
+    }
+
+    /**
+     * Erro de digitação num campo definitivo precisa ter conserto — mas só
+     * pelo administrador, e ainda sujeito à checagem contra a entrada.
+     */
+    public function test_admin_can_correct_the_hospital_discharge_date(): void
+    {
+        $patient = Patient::create([
+            'medical_record_number' => '999555',
+            'full_name' => 'Paciente Correção',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $this->actingAs(User::factory()->create());
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+            'admission_at' => '2026-08-10 10:00:00',
+        ]))->assertCreated()->json();
+
+        $this->actingAs(User::factory()->admin()->create());
+
+        $corrigido = $this->putJson("/api/admissions/{$admission['id']}", [
+            'version' => $admission['version'],
+            'hospital_discharge_at' => '2026-08-13 09:00:00',
+        ])->assertOk()->json();
+
+        $this->assertStringStartsWith('2026-08-13', $corrigido['hospital_discharge_at']);
+
+        // A trava de coerência com a entrada continua valendo para o admin.
+        $this->putJson("/api/admissions/{$admission['id']}", [
+            'version' => $corrigido['version'],
             'hospital_discharge_at' => '1990-01-01 00:00:00',
-        ])->assertStatus(422);
+        ])->assertStatus(422)->assertJsonValidationErrors('hospital_discharge_at');
+    }
+
+    /**
+     * Regressão: a regra after_or_equal:admission_at comparava contra um
+     * campo inexistente na request, virando um no-op silencioso que
+     * permitia gravar alta hospitalar anterior à entrada. A validação
+     * acompanhou o campo para o encerramento.
+     */
+    public function test_hospital_discharge_at_cannot_be_before_admission_at_on_close(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = Patient::create([
+            'medical_record_number' => '999222',
+            'full_name' => 'Paciente Alta',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+            'admission_at' => '2026-08-10 10:00:00',
+        ]))->assertCreated()->json();
+
+        $this->postJson("/api/admissions/{$admission['id']}/close", [
+            'version' => $admission['version'],
+            'final_cid_code' => 'G40.9',
+            'discharge_outcome' => 'Melhora clínica.',
+            'hospital_discharge_at' => '1990-01-01 00:00:00',
+        ])->assertStatus(422)->assertJsonValidationErrors('hospital_discharge_at');
+
+        $this->assertNull($admission['hospital_discharge_at']);
+    }
+
+    public function test_closing_records_the_hospital_discharge_date(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = Patient::create([
+            'medical_record_number' => '999333',
+            'full_name' => 'Paciente Encerrado',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+            'admission_at' => '2026-08-10 10:00:00',
+        ]))->assertCreated()->json();
+
+        $closed = $this->postJson("/api/admissions/{$admission['id']}/close", [
+            'version' => $admission['version'],
+            'final_cid_code' => 'G40.9',
+            'discharge_outcome' => 'Melhora clínica.',
+            'hospital_discharge_at' => '2026-08-14 16:00:00',
+        ])->assertOk()->json();
+
+        $this->assertStringStartsWith('2026-08-14', $closed['hospital_discharge_at']);
+    }
+
+    /**
+     * Encerrar sem informar a alta é legítimo — a Neurologia pode encerrar
+     * o acompanhamento com o paciente ainda internado sob outra equipe.
+     */
+    /**
+     * O cadastro pode nascer só com nome e número de atendimento — na porta
+     * da enfermaria nem sempre se tem a data de nascimento à mão, e exigi-la
+     * ali levaria a inventar valor.
+     */
+    public function test_patient_can_be_registered_without_a_date_of_birth(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = $this->postJson('/api/patients', [
+            'attendance_number' => 'SEM-DATA-1',
+            'full_name' => 'Luiz Henrique Teixeira Santos',
+        ])->assertCreated()->json('patient');
+
+        $this->assertNull($patient['date_of_birth']);
+        $this->assertNull($patient['medical_record_number']);
+    }
+
+    /**
+     * A cobrança dos dados de identificação acontece no ENCERRAMENTO: é ali
+     * que o episódio deixa de ser assistencial e vira dado de gestão, e
+     * depois disso ninguém volta para completar o cadastro.
+     */
+    public function test_closing_is_blocked_until_medical_record_and_birth_date_are_filled(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = Patient::create(['full_name' => 'Incompleto']);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+            'attendance_number' => 'INC-1',
+        ]))->assertCreated()->json();
+
+        $encerrar = [
+            'version' => $admission['version'],
+            'final_cid_code' => 'G40.9',
+            'discharge_outcome' => 'Melhora clínica.',
+        ];
+
+        $erro = $this->postJson("/api/admissions/{$admission['id']}/close", $encerrar)
+            ->assertStatus(422)->assertJsonValidationErrors('closure_requirements')
+            ->json('errors.closure_requirements.0');
+
+        $this->assertStringContainsString('número de prontuário', $erro);
+        $this->assertStringContainsString('data de nascimento', $erro);
+        $this->assertSame('ACTIVE', $admission['status']);
+
+        // Só o prontuário: a data de nascimento continua faltando.
+        $this->putJson("/api/patients/{$patient->id}", [
+            'medical_record_number' => 'INC-9001',
+            'medical_record_confirmed' => true,
+        ])->assertOk();
+
+        $erro = $this->postJson("/api/admissions/{$admission['id']}/close", $encerrar)
+            ->assertStatus(422)->json('errors.closure_requirements.0');
+
+        $this->assertStringNotContainsString('número de prontuário', $erro);
+        $this->assertStringContainsString('data de nascimento', $erro);
+
+        // Completo o cadastro: o encerramento passa.
+        $this->putJson("/api/patients/{$patient->id}", ['date_of_birth' => '1975-04-04'])->assertOk();
+
+        $encerrado = $this->postJson("/api/admissions/{$admission['id']}/close", $encerrar)
+            ->assertOk()->json();
+
+        $this->assertSame('CLOSED', $encerrado['status']);
+    }
+
+    public function test_closing_without_a_discharge_date_is_allowed(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = Patient::create([
+            'medical_record_number' => '999444',
+            'full_name' => 'Segue Internado',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+        ]))->assertCreated()->json();
+
+        $closed = $this->postJson("/api/admissions/{$admission['id']}/close", [
+            'version' => $admission['version'],
+            'final_cid_code' => 'G40.9',
+            'discharge_outcome' => 'Alta da Neurologia, segue internado na Clínica Médica.',
+        ])->assertOk()->json();
+
+        $this->assertNull($closed['hospital_discharge_at']);
+        $this->assertSame('CLOSED', $closed['status']);
     }
 }

@@ -5,4 +5,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/patients/lookup', [PatientController::class, 'lookup'])->name('patients.lookup');
 Route::post('/patients', [PatientController::class, 'store'])->name('patients.store');
+Route::put('/patients/{patient}', [PatientController::class, 'update'])->name('patients.update');
 Route::get('/patients/{patient}/history', [PatientController::class, 'history'])->name('patients.history');

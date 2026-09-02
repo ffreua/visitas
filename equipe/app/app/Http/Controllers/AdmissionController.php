@@ -25,6 +25,8 @@ class AdmissionController extends Controller
 
     private const ACTIVE_ADMISSION_CONFLICT_MESSAGE = 'Este paciente já possui acompanhamento ativo.';
 
+    private const ATTENDANCE_NUMBER_CONFLICT_MESSAGE = 'Já existe um atendimento ativo com este número de atendimento.';
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', Admission::class);
@@ -34,9 +36,15 @@ class AdmissionController extends Controller
         $query = Admission::query()->active()->with(self::EAGER);
 
         if ($search = $request->string('search')->toString()) {
-            $query->whereHas('patient', function ($q) use ($search) {
-                $q->where('full_name', 'like', "%{$search}%")
-                    ->orWhere('medical_record_number', 'like', '%'.strtoupper($search).'%');
+            // Busca única cobrindo os três identificadores em uso na
+            // enfermaria: nome, prontuário (paciente) e número de
+            // atendimento (episódio) — quem está com a papeleta na mão
+            // digita o que tem, sem escolher o campo antes.
+            $query->where(function ($outer) use ($search) {
+                $outer->whereHas('patient', function ($q) use ($search) {
+                    $q->where('full_name', 'like', "%{$search}%")
+                        ->orWhere('medical_record_number', 'like', '%'.strtoupper($search).'%');
+                })->orWhere('attendance_number', 'like', '%'.strtoupper($search).'%');
             });
         }
 
@@ -113,6 +121,14 @@ class AdmissionController extends Controller
                     ]);
                 }
 
+                $attendanceNumber = Admission::normalizeAttendanceNumber($data['attendance_number'] ?? null);
+                if ($attendanceNumber !== null
+                    && Admission::where('attendance_number', $attendanceNumber)->exists()) {
+                    throw ValidationException::withMessages([
+                        'attendance_number' => self::ATTENDANCE_NUMBER_CONFLICT_MESSAGE,
+                    ]);
+                }
+
                 $healthPlanSnapshot = null;
                 if ($data['payer_type'] === 'HEALTH_PLAN') {
                     $healthPlanSnapshot = HealthPlan::findOrFail($data['health_plan_id'])->name;
@@ -137,10 +153,8 @@ class AdmissionController extends Controller
 
                 return $admission;
             });
-        } catch (UniqueConstraintViolationException) {
-            throw ValidationException::withMessages([
-                'patient_id' => self::ACTIVE_ADMISSION_CONFLICT_MESSAGE,
-            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            throw ValidationException::withMessages(self::conflictMessagesFor($e));
         }
 
         // Recarrega para trazer colunas com default definido só no banco
@@ -167,21 +181,75 @@ class AdmissionController extends Controller
         // senão o episódio fica com health_plan_id novo mas o snapshot
         // (usado preferencialmente no dashboard e na exportação) continua
         // apontando pro plano antigo.
-        if (array_key_exists('health_plan_id', $data)) {
+        if (($data['payer_type'] ?? null) === 'PRIVATE') {
+            // Trocar convênio → particular precisa limpar o vínculo inteiro.
+            // Zerar só o snapshot deixava health_plan_id apontando para o
+            // plano antigo: o episódio ficava "particular" com um plano
+            // pendurado, que voltaria a aparecer se alguém reabrisse a
+            // edição ou lesse o relacionamento em vez do snapshot.
+            $data['health_plan_id'] = null;
+            $data['health_plan_name_snapshot'] = null;
+        } elseif (array_key_exists('health_plan_id', $data)) {
             $data['health_plan_name_snapshot'] = $data['health_plan_id']
                 ? HealthPlan::findOrFail($data['health_plan_id'])->name
                 : null;
-        } elseif (($data['payer_type'] ?? null) === 'PRIVATE') {
-            $data['health_plan_name_snapshot'] = null;
         }
 
         $admission->fill(collect($data)->except('version')->toArray());
         $admission->updated_by = Auth::id();
-        $admission->save();
+
+        try {
+            $admission->save();
+        } catch (UniqueConstraintViolationException $e) {
+            throw ValidationException::withMessages(self::conflictMessagesFor($e));
+        }
 
         AuditLogger::logModel('UPDATE_ADMISSION', $admission, $changed);
 
         return response()->json($admission->load(self::EAGER));
+    }
+
+    /**
+     * Dados do paciente sem os quais o episódio não serve para análise:
+     * o prontuário é a chave que liga as internações da mesma pessoa, e a
+     * data de nascimento é o que permite qualquer leitura por faixa etária.
+     *
+     * Diagnóstico final e desfecho não entram aqui porque já são
+     * obrigatórios na própria CloseAdmissionRequest.
+     *
+     * @return array<int, string>
+     */
+    public static function missingForClosure(Admission $admission): array
+    {
+        $patient = $admission->patient;
+        $faltando = [];
+
+        if ($patient === null || $patient->medical_record_number === null) {
+            $faltando[] = 'número de prontuário';
+        }
+
+        if ($patient === null || $patient->date_of_birth === null) {
+            $faltando[] = 'data de nascimento';
+        }
+
+        return $faltando;
+    }
+
+    /**
+     * Duas restrições únicas podem estourar no mesmo INSERT/UPDATE (um
+     * episódio ativo por paciente e um número de atendimento por episódio
+     * vivo) — sem separar, um número de atendimento repetido apareceria na
+     * tela como "paciente já tem acompanhamento ativo".
+     *
+     * @return array<string, string>
+     */
+    private static function conflictMessagesFor(UniqueConstraintViolationException $e): array
+    {
+        if (str_contains($e->getMessage(), 'attendance_number')) {
+            return ['attendance_number' => self::ATTENDANCE_NUMBER_CONFLICT_MESSAGE];
+        }
+
+        return ['patient_id' => self::ACTIVE_ADMISSION_CONFLICT_MESSAGE];
     }
 
     public function close(CloseAdmissionRequest $request, Admission $admission)
@@ -193,6 +261,17 @@ class AdmissionController extends Controller
 
         if ($admission->status === 'CLOSED') {
             throw ValidationException::withMessages(['status' => 'Este acompanhamento já está encerrado.']);
+        }
+
+        // O encerramento é o ponto em que o episódio deixa de ser assistencial
+        // e vira dado de gestão — depois disso ninguém volta para completar o
+        // cadastro. É aqui, e não no cadastro inicial, que os identificadores
+        // do paciente são cobrados.
+        if ($faltando = self::missingForClosure($admission)) {
+            throw ValidationException::withMessages([
+                'closure_requirements' => 'Complete o cadastro do paciente antes de encerrar: '
+                    .implode(', ', $faltando).'.',
+            ]);
         }
 
         $closedAt = $data['neurology_followup_closed_at'] ?? now();
@@ -210,6 +289,13 @@ class AdmissionController extends Controller
             ]);
 
             $admission->neurology_followup_closed_at = $closedAt;
+
+            // Só grava se veio preenchida — reencerrar não pode apagar uma
+            // alta já registrada.
+            if (! empty($data['hospital_discharge_at'])) {
+                $admission->hospital_discharge_at = $data['hospital_discharge_at'];
+            }
+
             $admission->discharge_outcome = $data['discharge_outcome'];
             $admission->followup_plan_documented = $data['followup_plan_documented'] ?? null;
             $admission->status = 'CLOSED';

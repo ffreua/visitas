@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Admission;
+use App\Models\Patient;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,6 +19,18 @@ class StoreAdmissionRequest extends FormRequest
         return [
             'patient_id' => ['required', 'integer', 'exists:patients,id'],
 
+            // Obrigatório quando o paciente ainda não tem prontuário
+            // confirmado — sem nenhum dos dois números o episódio ficaria
+            // sem qualquer referência ao sistema do hospital.
+            'attendance_number' => [
+                Rule::requiredIf(function () {
+                    $patient = Patient::find($this->input('patient_id'));
+
+                    return $patient && ! $patient->hasConfirmedMedicalRecord();
+                }),
+                'nullable', 'string', 'max:50',
+            ],
+
             'admission_at' => ['required', 'date'],
             'hospital_discharge_at' => ['nullable', 'date', 'after_or_equal:admission_at'],
 
@@ -30,7 +44,7 @@ class StoreAdmissionRequest extends FormRequest
                 'nullable', 'integer', 'exists:health_plans,id',
             ],
 
-            'origin' => ['nullable', 'string', 'max:255'],
+            'origin' => ['required', Rule::in(array_keys(Admission::ORIGINS))],
             'unit' => ['nullable', 'string', 'max:255'],
             'bed' => ['nullable', 'string', 'max:255'],
 
@@ -59,6 +73,9 @@ class StoreAdmissionRequest extends FormRequest
             'requesting_specialty_id.required' => 'Especialidade solicitante é obrigatória em interconsultas.',
             'consult_requested_at.required' => 'Horário da solicitação é obrigatório em interconsultas.',
             'suspected_cid_code.required' => 'Hipótese diagnóstica é obrigatória.',
+            'origin.required' => 'Procedência é obrigatória.',
+            'origin.in' => 'Procedência inválida.',
+            'attendance_number.required' => 'Número de atendimento é obrigatório enquanto o paciente não tiver prontuário confirmado.',
         ];
     }
 }

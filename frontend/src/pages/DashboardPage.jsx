@@ -62,7 +62,7 @@ export default function DashboardPage() {
 
       <input
         className="search-input"
-        placeholder="Buscar por nome ou prontuário…"
+        placeholder="Buscar por nome, prontuário ou nº de atendimento…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ marginBottom: 12 }}

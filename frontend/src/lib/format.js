@@ -43,6 +43,19 @@ export function nowLocalISOString() {
   return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
+/**
+ * Valor para <input type="datetime-local">, que só aceita
+ * "YYYY-MM-DDTHH:mm" no fuso LOCAL — toISOString() devolveria UTC e
+ * deslocaria o horário exibido em 3 horas no fuso de São Paulo.
+ */
+export function toDateTimeInputValue(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function isSameLocalDate(isoValue, isoDate) {
   if (!isoValue || !isoDate) return false
   return String(isoValue).slice(0, 10) === String(isoDate).slice(0, 10)

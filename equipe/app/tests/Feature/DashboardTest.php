@@ -43,6 +43,7 @@ class DashboardTest extends TestCase
         $admission1 = $this->postJson('/api/admissions', [
             'patient_id' => $p1->id, 'admission_at' => now()->toDateTimeString(),
             'care_type' => 'INSTITUTIONAL', 'followup_mode' => 'ONGOING', 'payer_type' => 'PRIVATE',
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ])->json();
 
@@ -53,6 +54,7 @@ class DashboardTest extends TestCase
             'care_type' => 'INTERCONSULT', 'requesting_specialty_id' => $specialty->id,
             'consult_requested_at' => now()->toDateTimeString(),
             'followup_mode' => 'SINGLE_EVALUATION', 'payer_type' => 'HEALTH_PLAN', 'health_plan_id' => $plan->id,
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ])->json();
 
@@ -98,6 +100,36 @@ class DashboardTest extends TestCase
         $this->assertSame(1, $data['visit_coverage']['active_patient_days']);
     }
 
+    public function test_dashboard_breaks_episodes_down_by_origin(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+
+        CID10::create(['code' => 'G40.9', 'description' => 'Epilepsia', 'category' => 'G40', 'normalized_description' => 'epilepsia']);
+
+        foreach ([['O1', 'EMERGENCY_ROOM'], ['O2', 'EMERGENCY_ROOM'], ['O3', 'ICU']] as [$mrn, $origin]) {
+            $patient = Patient::create(['medical_record_number' => $mrn, 'full_name' => "Paciente {$mrn}", 'date_of_birth' => '1980-01-01']);
+            $this->postJson('/api/admissions', [
+                'patient_id' => $patient->id, 'admission_at' => now()->toDateTimeString(),
+                'care_type' => 'INSTITUTIONAL', 'followup_mode' => 'ONGOING', 'payer_type' => 'PRIVATE',
+                'origin' => $origin,
+                'suspected_cid_code' => 'G40.9',
+            ])->assertCreated();
+        }
+
+        $origens = collect($this->getJson('/api/admin/dashboard')->assertOk()->json('origins.by_origin'))
+            ->keyBy('origin');
+
+        // Todas as procedências do vocabulário aparecem, inclusive as
+        // zeradas — um relatório que omite a categoria vazia esconde a
+        // informação de que ninguém veio de lá no período.
+        $this->assertCount(5, $origens);
+        $this->assertSame(2, $origens['EMERGENCY_ROOM']['episodes']);
+        $this->assertSame(1, $origens['ICU']['episodes']);
+        $this->assertSame(0, $origens['OPERATING_ROOM']['episodes']);
+        $this->assertSame('Pronto Socorro', $origens['EMERGENCY_ROOM']['label']);
+    }
+
     public function test_data_quality_panel_flags_active_admission_without_diagnosis(): void
     {
         $admin = User::factory()->admin()->create();
@@ -109,6 +141,7 @@ class DashboardTest extends TestCase
         $this->postJson('/api/admissions', [
             'patient_id' => $patient->id, 'admission_at' => now()->toDateTimeString(),
             'care_type' => 'INSTITUTIONAL', 'followup_mode' => 'ONGOING', 'payer_type' => 'PRIVATE',
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ])->assertCreated();
 

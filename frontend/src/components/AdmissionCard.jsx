@@ -21,7 +21,18 @@ export default function AdmissionCard({ admission }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div>
           <div className="name">{patient?.full_name}{age !== null ? ` · ${age} anos` : ''}</div>
-          <div className="meta">Prontuário {patient?.medical_record_number}</div>
+          <div className="meta">
+            {patient?.medical_record_number
+              ? `Prontuário ${patient.medical_record_number}`
+              : '⚠ Prontuário pendente'}
+            {' · '}
+            {/* Sempre visível, mesmo ausente: é o que sinaliza o episódio
+                cadastrado antes deste campo existir e que ainda pode
+                receber o número. */}
+            {admission.attendance_number
+              ? `Atend. ${admission.attendance_number}`
+              : 'Atend. não informado'}
+          </div>
         </div>
         <span className={`status-indicator ${isVisited ? 'status-visited' : 'status-pending'}`}>
           {isVisited ? '✓ Visitado' : 'Visita pendente'}

@@ -31,6 +31,7 @@ class ExportTest extends TestCase
         return $this->postJson('/api/admissions', [
             'patient_id' => $patient->id, 'admission_at' => now()->toDateTimeString(),
             'care_type' => 'INSTITUTIONAL', 'followup_mode' => 'ONGOING', 'payer_type' => 'PRIVATE',
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ])->json();
     }

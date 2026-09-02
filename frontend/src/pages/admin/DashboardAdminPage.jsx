@@ -97,6 +97,27 @@ export default function DashboardAdminPage() {
       </div>
 
       <div className="card">
+        <div className="section-title" style={{ marginTop: 0 }}>Procedência</div>
+        <table className="admin-table">
+          <thead><tr><th>Procedência</th><th>Episódios</th><th>Mediana acompanhamento</th></tr></thead>
+          <tbody>
+            {data.origins.by_origin.map((o) => (
+              <tr key={o.origin}>
+                <td>{o.label}</td>
+                <td>{o.episodes}</td>
+                <td>{o.median_followup_days ?? '—'} dias</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {data.origins.not_informed > 0 && (
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: 6 }}>
+            {data.origins.not_informed} episódio(s) sem procedência — cadastrados antes de o campo existir.
+          </div>
+        )}
+      </div>
+
+      <div className="card">
         <div className="section-title" style={{ marginTop: 0 }}>Interconsultas</div>
         <div>Total: {data.interconsults.count}</div>
         <div>Tempo solicitação → 1ª avaliação: <DurationSummary summary={data.interconsults.response_time_days} /></div>
@@ -178,6 +199,7 @@ export default function DashboardAdminPage() {
             <li>Não visitados hoje: {quality.not_visited_today}</li>
             <li>Altas sem diagnóstico final: {quality.discharges_without_final_diagnosis}</li>
             <li>Sem plano/particular definido: {quality.without_payer_defined}</li>
+            <li>Ativos sem procedência: {quality.without_origin}</li>
             <li>Internações há mais de 30 dias: {quality.admissions_over_30_days}</li>
             <li>Avaliações únicas abertas há mais de 3 dias: {quality.single_evaluations_open_over_3_days}</li>
             <li>Pendências abertas há mais de 14 dias: {quality.pending_items_open_over_14_days}</li>

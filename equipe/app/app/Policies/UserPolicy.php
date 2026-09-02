@@ -34,4 +34,16 @@ class UserPolicy
     {
         return $user->isAdmin();
     }
+
+    /**
+     * Exclusão definitiva: só ADMIN, e nunca a própria conta (um admin que
+     * se exclui pode deixar o sistema sem administrador). As demais
+     * restrições — autoria assistencial e último admin ativo — dependem do
+     * estado do banco e ficam no controller, com mensagem explicando o que
+     * fazer no lugar.
+     */
+    public function delete(User $user, User $target): bool
+    {
+        return $user->isAdmin() && $user->isNot($target);
+    }
 }

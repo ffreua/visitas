@@ -33,6 +33,7 @@ class OptimisticLockingTest extends TestCase
             'care_type' => 'INSTITUTIONAL',
             'followup_mode' => 'ONGOING',
             'payer_type' => 'PRIVATE',
+            'origin' => 'WARD',
             'suspected_cid_code' => 'G40.9',
         ])->assertCreated()->json();
 
