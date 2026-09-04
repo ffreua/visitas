@@ -53,6 +53,17 @@ class User extends Authenticatable
     }
 
     /**
+     * Gestor observador: enxerga a lista assistencial e os dashboards e
+     * nada mais — nenhuma escrita, nenhuma exportação. Quem garante isso
+     * na prática é o middleware DenyObserverWrites (bloqueia todo verbo de
+     * escrita) somado às Policies; este método é só a pergunta.
+     */
+    public function isObserver(): bool
+    {
+        return $this->role === 'OBSERVER';
+    }
+
+    /**
      * Colunas que registram AUTORIA de ato assistencial. Todas apontam para
      * users; as marcadas com nullOnDelete não impediriam a exclusão no
      * banco — apagariam silenciosamente o autor de uma visita ou de uma

@@ -11,6 +11,9 @@ use App\Models\User;
  * futura role (residente, auditoria, secretária) herdaria acesso a PHI
  * por omissão. Existir e retornar `true` documenta a decisão e dá um
  * único lugar para apertar o acesso depois.
+ *
+ * Esse "depois" chegou com OBSERVER (gestor observador): ele LÊ a lista
+ * — é a finalidade do papel — mas não cria nem corrige cadastro.
  */
 class PatientPolicy
 {
@@ -26,7 +29,7 @@ class PatientPolicy
 
     public function create(User $user): bool
     {
-        return true;
+        return ! $user->isObserver();
     }
 
     /**
@@ -36,6 +39,6 @@ class PatientPolicy
      */
     public function update(User $user, Patient $patient): bool
     {
-        return true;
+        return ! $user->isObserver();
     }
 }

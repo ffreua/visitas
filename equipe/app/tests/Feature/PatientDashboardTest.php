@@ -72,6 +72,7 @@ class PatientDashboardTest extends TestCase
         $this->postJson("/api/admissions/{$first['id']}/close", [
             'version' => $this->getJson("/api/admissions/{$first['id']}")->json('version'),
             'final_cid_code' => 'R55',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Melhora clínica.',
         ])->assertOk();
 

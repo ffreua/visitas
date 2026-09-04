@@ -8,6 +8,8 @@ import DashboardPage from './pages/DashboardPage'
 import ClosedListPage from './pages/ClosedListPage'
 import NewAdmissionPage from './pages/NewAdmissionPage'
 import AdmissionDetailPage from './pages/AdmissionDetailPage'
+import PrintRoundPage from './pages/PrintRoundPage'
+import MyRoundsPage from './pages/MyRoundsPage'
 import UsersAdminPage from './pages/admin/UsersAdminPage'
 import HealthPlansAdminPage from './pages/admin/HealthPlansAdminPage'
 import MedicalSpecialtiesAdminPage from './pages/admin/MedicalSpecialtiesAdminPage'
@@ -33,12 +35,21 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/altas" element={<ClosedListPage />} />
-              <Route path="/novo" element={<NewAdmissionPage />} />
+              <Route path="/imprimir" element={<PrintRoundPage />} />
+              <Route path="/minhas-visitas" element={<MyRoundsPage />} />
               <Route path="/atendimentos/:id" element={<AdmissionDetailPage />} />
 
-              <Route element={<ProtectedRoute adminOnly />}>
+              <Route element={<ProtectedRoute roles={['ADMIN', 'PHYSICIAN']} />}>
+                <Route path="/novo" element={<NewAdmissionPage />} />
+              </Route>
+
+              {/* Dashboards: admin e gestor observador. */}
+              <Route element={<ProtectedRoute roles={['ADMIN', 'OBSERVER']} />}>
                 <Route path="/admin/dashboard" element={<DashboardAdminPage />} />
                 <Route path="/admin/prontuarios" element={<PatientDashboardAdminPage />} />
+              </Route>
+
+              <Route element={<ProtectedRoute adminOnly />}>
                 <Route path="/admin/exportacoes" element={<ExportsAdminPage />} />
                 <Route path="/admin/equipe" element={<UsersAdminPage />} />
                 <Route path="/admin/planos" element={<HealthPlansAdminPage />} />

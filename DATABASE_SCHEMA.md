@@ -19,7 +19,7 @@ Este documento é a referência canônica do modelo de dados. Migrations devem s
 | crm | string, nullable | |
 | username | string, unique | |
 | password | string (hash) | Argon2id se disponível, senão bcrypt padrão Laravel |
-| role | enum: ADMIN, PHYSICIAN | |
+| role | enum: ADMIN, PHYSICIAN, OBSERVER | OBSERVER = gestor observador, somente leitura (lista assistencial + dashboards); nunca escreve nem exporta |
 | must_change_password | boolean, default true | |
 | active | boolean, default true | nunca hard delete se já usado em atendimento |
 | last_login_at | timestamp, nullable | |

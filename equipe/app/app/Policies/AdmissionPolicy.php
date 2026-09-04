@@ -19,12 +19,12 @@ class AdmissionPolicy
 
     public function create(User $user): bool
     {
-        return true;
+        return ! $user->isObserver();
     }
 
     public function update(User $user, Admission $admission): bool
     {
-        return true;
+        return ! $user->isObserver();
     }
 
     /**
@@ -33,7 +33,7 @@ class AdmissionPolicy
      */
     public function delete(User $user, Admission $admission): bool
     {
-        return true;
+        return ! $user->isObserver();
     }
 
     public function viewTrashed(User $user): bool

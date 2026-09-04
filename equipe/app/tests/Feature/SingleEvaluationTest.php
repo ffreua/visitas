@@ -50,6 +50,7 @@ class SingleEvaluationTest extends TestCase
         $closed = $this->postJson("/api/admissions/{$created['id']}/close", [
             'version' => $created['version'],
             'final_cid_code' => 'R55',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Síncope vasovagal, sem indicação de seguimento.',
         ])->assertOk()->json();
 

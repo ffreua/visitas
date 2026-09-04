@@ -21,7 +21,7 @@ export default function OfflineBanner() {
   if (online) return null
 
   return (
-    <div className="alert alert-danger" style={{ margin: 12, marginBottom: 0 }}>
+    <div className="alert alert-danger no-print" style={{ margin: 12, marginBottom: 0 }}>
       Sem conexão com o servidor.<br />
       Por segurança, informações clínicas não são disponibilizadas offline.
     </div>

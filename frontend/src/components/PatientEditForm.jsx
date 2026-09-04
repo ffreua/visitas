@@ -24,6 +24,11 @@ export default function PatientEditForm({ patient, onSaved, onlyMedicalRecord = 
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Este formulário é embutido dentro de outras telas (aviso de
+    // prontuário pendente, aviso de cadastro incompleto no
+    // encerramento). Sem isto, o submit borbulha para um <form> ancestral
+    // e dispara o handler dele junto com este.
+    e.stopPropagation()
     setError('')
     setSuccess('')
 

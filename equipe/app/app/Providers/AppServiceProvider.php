@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,6 +17,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Os dashboards eram autorizados por "viewAny User" — a mesma
+        // permissao que libera exportacao, gestao de equipe e as acoes
+        // destrutivas de Sistema & Backups. O gestor observador precisa dos
+        // dashboards e de nada mais daquele conjunto, entao a leitura dos
+        // indicadores ganha permissao propria em vez de o papel novo herdar
+        // o pacote inteiro do admin.
+        Gate::define('view-dashboards', fn (User $user) => $user->isAdmin() || $user->isObserver());
+
         RateLimiter::for('login', function ($request) {
             return [
                 // Por usuário+IP: impede força bruta contra uma conta específica.

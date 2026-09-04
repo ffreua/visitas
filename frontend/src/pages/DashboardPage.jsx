@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api'
 import AdmissionCard from '../components/AdmissionCard'
+import { useAuth } from '../context/AuthContext'
+import { canWrite } from '../lib/roles'
 
 const FILTERS = [
   { key: 'all', label: 'Todos', params: {} },
@@ -15,6 +17,7 @@ const FILTERS = [
 ]
 
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [activeFilter, setActiveFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [admissions, setAdmissions] = useState([])
@@ -81,9 +84,11 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <Link to="/novo" className="btn-new-admission">
-        <span>➕</span> Novo Atendimento
-      </Link>
+      {canWrite(user) && (
+        <Link to="/novo" className="btn-new-admission">
+          <span>➕</span> Novo Atendimento
+        </Link>
+      )}
 
       {loading ? (
         <div className="empty-state">Carregando casos…</div>

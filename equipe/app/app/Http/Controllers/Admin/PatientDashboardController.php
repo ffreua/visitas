@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Admission;
 use App\Models\Patient;
-use App\Models\User;
 use App\Services\Percentiles;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -32,7 +31,7 @@ class PatientDashboardController extends Controller
      */
     public function index(Request $request)
     {
-        Gate::authorize('viewAny', User::class);
+        Gate::authorize('view-dashboards');
 
         $data = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -87,7 +86,7 @@ class PatientDashboardController extends Controller
      */
     public function show(Request $request, Patient $patient)
     {
-        Gate::authorize('viewAny', User::class);
+        Gate::authorize('view-dashboards');
 
         $data = $request->validate(['include_deleted' => ['nullable', 'boolean']]);
         $includeDeleted = (bool) ($data['include_deleted'] ?? false);

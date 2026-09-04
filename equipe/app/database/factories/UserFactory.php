@@ -33,6 +33,14 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function observer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'OBSERVER',
+            'crm' => null,
+        ]);
+    }
+
     public function mustChangePassword(): static
     {
         return $this->state(fn (array $attributes) => [

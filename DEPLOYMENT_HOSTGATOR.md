@@ -55,12 +55,14 @@ Nada nesse pacote toca em `.env`, `vendor/`, `storage/` ou no banco.
 
 ### Passo 4 — Atualizar a estrutura do banco (pelo próprio site)
 
-> ⏱️ **Entre o passo 2 e o passo 4 o app fica parcialmente indisponível** (dá para entrar e ver a
-> lista, mas não para criar atendimento novo): o código já espera as colunas novas, que só
-> passam a existir no passo 4. São poucos minutos — prefira fazer fora do horário de visita.
+> ⏱️ **Entre o passo 2 e o passo 4 o atendimento continua normal.** São duas mudanças de banco
+> nesta versão — `users.role` passa a aceitar o valor `OBSERVER`, e os episódios antigos recebem
+> a data da 1ª avaliação a partir da visita mais antiga já registrada. A única coisa que não
+> funciona antes do passo 4 é **criar usuário com o perfil "Gestor observador"** (o banco recusa
+> o valor). Cadastrar paciente, assinar visita, encerrar acompanhamento e imprimir a lista
+> seguem funcionando o tempo todo.
 
-Esta versão acrescenta colunas novas (número de atendimento, prontuário pendente). Como não há
-terminal na hospedagem, isso é feito por uma tela:
+Como não há terminal na hospedagem, a atualização da estrutura é feita por uma tela:
 
 1. Acesse `https://drfernandofreua.com.br/visitas/` e entre como administrador.
 2. Menu → **Administração → Sistema & Backups**.
@@ -69,7 +71,10 @@ terminal na hospedagem, isso é feito por uma tela:
 
 O sistema cria e **verifica** um backup antes de mexer em qualquer coisa — se o backup falhar,
 ele aborta e não altera nada. As migrations desta versão só **adicionam** colunas e índices:
-nenhum paciente, episódio, visita ou pendência é apagado ou reescrito.
+nenhum paciente, episódio, visita ou pendência é apagado ou reescrito. As desta versão ampliam a
+lista de perfis aceitos em `users.role` (ADMIN e PHYSICIAN ficam exatamente como estão) e
+preenchem `first_neurology_evaluation_at` **somente onde ele está vazio**, usando a visita mais
+antiga já registrada do próprio episódio.
 
 Depois de aplicar, o mesmo bloco passa a mostrar **"✓ Banco atualizado"**.
 
@@ -78,6 +83,19 @@ Depois de aplicar, o mesmo bloco passa a mostrar **"✓ Banco atualizado"**.
 - Abra o app no celular e **atualize a página** (o app é um PWA; se a tela parecer antiga,
   puxe para recarregar ou feche e abra de novo — o service worker troca sozinho a versão).
 - A lista de casos ativos deve continuar com os pacientes de antes.
+- Menu → **🖨️ Imprimir Lista de Hoje** → a folha deve trazer todos os casos ativos, ordenados por
+  enfermaria e leito. O botão **Imprimir** abre a caixa de impressão do navegador (escolha A4
+  **deitado / paisagem**).
+- Menu → **Administração → Gestão da Equipe → + Novo médico** → o seletor de perfil deve ter a
+  terceira opção **"Gestor observador (somente leitura)"**. Crie o usuário, entre com ele
+  (senha inicial `senha@1234`, com troca obrigatória) e confira que o menu dele tem só Casos
+  Ativos, Altas/Histórico, Imprimir e os dois dashboards — e que a ficha de um paciente abre
+  sem nenhum botão de editar, assinar visita ou encerrar.
+- Menu → **Administração → Indicadores & Dashboard** → clique em **Mês passado**. Confira a
+  faixa de indicadores no topo com a variação contra o mês anterior, o gráfico de evolução
+  mensal e o medidor de cobertura. **A cobertura vai aparecer bem menor do que antes desta
+  versão — é a correção, não uma queda de desempenho da equipe** (o cálculo antigo só contava
+  como oportunidade de visita os dias em que alguém já tinha registrado algo).
 - Menu → **Administração → Dashboard por Prontuário** → busque um prontuário existente:
   deve listar os atendimentos daquele paciente.
 

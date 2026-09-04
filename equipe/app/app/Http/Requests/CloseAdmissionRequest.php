@@ -20,6 +20,14 @@ class CloseAdmissionRequest extends FormRequest
             'followup_plan_documented' => ['nullable', 'string'],
             'neurology_followup_closed_at' => ['nullable', 'date'],
 
+            // Conferência obrigatória do convênio. Não é um dado do
+            // episódio: é a declaração de quem encerra de que olhou para o
+            // pagador antes de fechar. O convênio decide para onde a conta
+            // vai, e o encerramento é a última vez que alguém passa por
+            // aqui — depois o episódio vira dado de gestão e ninguém
+            // volta para revisá-lo.
+            'health_plan_confirmed' => ['required', 'accepted'],
+
             // Único momento em que a alta hospitalar é gravada. Opcional
             // porque a Neurologia pode encerrar o acompanhamento com o
             // paciente ainda internado sob outra equipe — nesse caso o
@@ -39,6 +47,8 @@ class CloseAdmissionRequest extends FormRequest
         return [
             'final_cid_code.required' => 'Diagnóstico final é obrigatório para encerrar o acompanhamento.',
             'discharge_outcome.required' => 'Desfecho é obrigatório para encerrar o acompanhamento.',
+            'health_plan_confirmed.required' => 'Confirme o convênio do atendimento antes de encerrar.',
+            'health_plan_confirmed.accepted' => 'Confirme o convênio do atendimento antes de encerrar.',
         ];
     }
 }

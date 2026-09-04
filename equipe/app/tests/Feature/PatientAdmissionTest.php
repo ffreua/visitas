@@ -101,6 +101,7 @@ class PatientAdmissionTest extends TestCase
         $this->postJson("/api/admissions/{$first['id']}/close", [
             'version' => $first['version'],
             'final_cid_code' => 'G40.9',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Melhora clínica.',
         ])->assertOk();
 
@@ -313,11 +314,55 @@ class PatientAdmissionTest extends TestCase
         $this->postJson("/api/admissions/{$admission['id']}/close", [
             'version' => $admission['version'],
             'final_cid_code' => 'G40.9',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Melhora clínica.',
             'hospital_discharge_at' => '1990-01-01 00:00:00',
         ])->assertStatus(422)->assertJsonValidationErrors('hospital_discharge_at');
 
         $this->assertNull($admission['hospital_discharge_at']);
+    }
+
+    /**
+     * O convênio decide para onde a conta vai, e o encerramento é a última
+     * vez que alguém passa pelo episódio. Encerrar sem a conferência do
+     * pagador tem de falhar no SERVIDOR, e não só sumir com o botão da
+     * tela: o episódio continua ativo e nada é gravado.
+     */
+    public function test_closing_requires_confirming_the_health_plan(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $patient = Patient::create([
+            'medical_record_number' => '999444',
+            'full_name' => 'Paciente Convênio',
+            'date_of_birth' => '1980-01-01',
+        ]);
+
+        $admission = $this->postJson('/api/admissions', $this->baseAdmissionPayload([
+            'patient_id' => $patient->id,
+        ]))->assertCreated()->json();
+
+        $encerrar = [
+            'version' => $admission['version'],
+            'final_cid_code' => 'G40.9',
+            'discharge_outcome' => 'Melhora clínica.',
+        ];
+
+        // Sem o campo.
+        $this->postJson("/api/admissions/{$admission['id']}/close", $encerrar)
+            ->assertStatus(422)->assertJsonValidationErrors('health_plan_confirmed');
+
+        // Com o campo, mas desmarcado.
+        $this->postJson("/api/admissions/{$admission['id']}/close",
+            [...$encerrar, 'health_plan_confirmed' => false])
+            ->assertStatus(422)->assertJsonValidationErrors('health_plan_confirmed');
+
+        $this->assertSame('ACTIVE', $this->getJson("/api/admissions/{$admission['id']}")->json('status'));
+
+        $this->postJson("/api/admissions/{$admission['id']}/close",
+            [...$encerrar, 'health_plan_confirmed' => true])->assertOk();
+
+        $this->assertSame('CLOSED', $this->getJson("/api/admissions/{$admission['id']}")->json('status'));
     }
 
     public function test_closing_records_the_hospital_discharge_date(): void
@@ -338,6 +383,7 @@ class PatientAdmissionTest extends TestCase
         $closed = $this->postJson("/api/admissions/{$admission['id']}/close", [
             'version' => $admission['version'],
             'final_cid_code' => 'G40.9',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Melhora clínica.',
             'hospital_discharge_at' => '2026-08-14 16:00:00',
         ])->assertOk()->json();
@@ -386,6 +432,7 @@ class PatientAdmissionTest extends TestCase
         $encerrar = [
             'version' => $admission['version'],
             'final_cid_code' => 'G40.9',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Melhora clínica.',
         ];
 
@@ -435,6 +482,7 @@ class PatientAdmissionTest extends TestCase
         $closed = $this->postJson("/api/admissions/{$admission['id']}/close", [
             'version' => $admission['version'],
             'final_cid_code' => 'G40.9',
+            'health_plan_confirmed' => true,
             'discharge_outcome' => 'Alta da Neurologia, segue internado na Clínica Médica.',
         ])->assertOk()->json();
 

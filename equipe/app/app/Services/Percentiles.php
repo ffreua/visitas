@@ -10,8 +10,13 @@ namespace App\Services;
 class Percentiles
 {
     /**
+     * `n` acompanha sempre a mediana: "mediana 4 dias" com n=2 e com n=200
+     * são afirmações muito diferentes, e sem o tamanho da amostra na tela
+     * as duas se parecem. Em indicador clínico é o que separa um dado de
+     * uma coincidência.
+     *
      * @param  array<int, float>  $values
-     * @return array{p25: ?float, median: ?float, p75: ?float, p90: ?float}
+     * @return array{n: int, p25: ?float, median: ?float, p75: ?float, p90: ?float}
      */
     public static function summarize(array $values): array
     {
@@ -19,10 +24,11 @@ class Percentiles
         sort($values);
 
         if (count($values) === 0) {
-            return ['p25' => null, 'median' => null, 'p75' => null, 'p90' => null];
+            return ['n' => 0, 'p25' => null, 'median' => null, 'p75' => null, 'p90' => null];
         }
 
         return [
+            'n' => count($values),
             'p25' => self::percentile($values, 0.25),
             'median' => self::percentile($values, 0.5),
             'p75' => self::percentile($values, 0.75),

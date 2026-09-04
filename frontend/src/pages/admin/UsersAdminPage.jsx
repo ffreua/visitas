@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
+import { roleLabel } from '../../lib/roles'
 
 const EMPTY_FORM = { full_name: '', crm: '', username: '', role: 'PHYSICIAN' }
 
@@ -130,6 +131,7 @@ export default function UsersAdminPage() {
             <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="PHYSICIAN">Médico</option>
               <option value="ADMIN">Administrador</option>
+              <option value="OBSERVER">Gestor observador (somente leitura)</option>
             </select>
           </div>
           <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Senha inicial: <code>senha@1234</code> (troca obrigatória no primeiro login).</p>
@@ -164,6 +166,7 @@ export default function UsersAdminPage() {
               onChange={(e) => setEditing({ ...editing, role: e.target.value })}>
               <option value="PHYSICIAN">Médico</option>
               <option value="ADMIN">Administrador</option>
+              <option value="OBSERVER">Gestor observador (somente leitura)</option>
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -208,7 +211,7 @@ export default function UsersAdminPage() {
                 <td>{u.full_name}{u.id === currentUser?.id ? ' (você)' : ''}</td>
                 <td>{u.username}</td>
                 <td>{u.crm || '—'}</td>
-                <td>{u.role === 'ADMIN' ? 'Administrador' : 'Médico'}</td>
+                <td>{roleLabel(u.role)}</td>
                 <td>{u.active ? 'Ativo' : 'Inativo'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

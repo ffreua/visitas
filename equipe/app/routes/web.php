@@ -25,7 +25,7 @@ Route::prefix('api')->name('api.')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('/auth/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');
 
-        Route::middleware('password.changed')->group(function () {
+        Route::middleware(['password.changed', 'observer.readonly'])->group(function () {
             require __DIR__.'/api/patients.php';
             require __DIR__.'/api/admissions.php';
             require __DIR__.'/api/catalogs.php';

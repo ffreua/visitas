@@ -2,6 +2,7 @@
 
 use App\Exceptions\ConfirmedMedicalRecordException;
 use App\Exceptions\StaleAdmissionException;
+use App\Http\Middleware\DenyObserverWrites;
 use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SecurityHeaders;
@@ -21,6 +22,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'password.changed' => EnsurePasswordChanged::class,
             'active' => EnsureUserIsActive::class,
+            'observer.readonly' => DenyObserverWrites::class,
         ]);
 
         // SPA sem tela de login server-side — sem isto, uma requisição não-AJAX

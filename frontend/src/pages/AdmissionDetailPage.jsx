@@ -6,6 +6,7 @@ import AdmissionEditForm from '../components/AdmissionEditForm'
 import PatientEditForm from '../components/PatientEditForm'
 import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime, todayISODate, isSameLocalDate } from '../lib/format'
+import { canWrite } from '../lib/roles'
 import { originLabel } from '../lib/vocabulary'
 
 const DELETE_REASONS = [
@@ -14,6 +15,20 @@ const DELETE_REASONS = [
   ['CREATED_BY_MISTAKE', 'Criado por engano'],
   ['OTHER', 'Outro'],
 ]
+
+/**
+ * Estado zerado do encerramento. Reaplicado toda vez que o formulário
+ * abre: a conferência do convênio vale para AQUELA tentativa de encerrar
+ * — quem cancelou para ir corrigir o pagador precisa conferir de novo ao
+ * voltar, e não encontrar a caixa ainda marcada da tentativa anterior.
+ */
+const CLOSE_FORM_INICIAL = {
+  final_cid_code: '',
+  discharge_outcome: '',
+  followup_plan_documented: '',
+  hospital_discharge_at: '',
+  health_plan_confirmed: false,
+}
 
 export default function AdmissionDetailPage() {
   const { id } = useParams()
@@ -26,13 +41,9 @@ export default function AdmissionDetailPage() {
 
   const [newPending, setNewPending] = useState('')
   const [showClose, setShowClose] = useState(false)
-  const [closeForm, setCloseForm] = useState({
-    final_cid_code: '',
-    discharge_outcome: '',
-    followup_plan_documented: '',
-    hospital_discharge_at: '',
-  })
+  const [closeForm, setCloseForm] = useState(CLOSE_FORM_INICIAL)
   const [finalCidLabel, setFinalCidLabel] = useState('')
+  const [patientFixed, setPatientFixed] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleteReason, setDeleteReason] = useState('DUPLICATE')
   const [deleteDetail, setDeleteDetail] = useState('')
@@ -64,6 +75,10 @@ export default function AdmissionDetailPage() {
   const suspected = (admission.diagnoses || []).filter((d) => d.phase === 'SUSPECTED')
   const final = (admission.diagnoses || []).filter((d) => d.phase === 'FINAL')
   const isSingleEval = admission.followup_mode === 'SINGLE_EVALUATION'
+  // Gestor observador vê a ficha inteira e não age sobre ela. O servidor já
+  // recusa qualquer escrita dele; aqui os controles somem para a tela não
+  // prometer o que a API vai negar.
+  const readOnly = !canWrite(user)
 
   // Espelha AdmissionController::missingForClosure. O servidor continua
   // sendo a autoridade — isto existe para avisar ANTES de o médico
@@ -72,6 +87,13 @@ export default function AdmissionDetailPage() {
     !admission.patient?.medical_record_number && 'Número de prontuário',
     !admission.patient?.date_of_birth && 'Data de nascimento',
   ].filter(Boolean)
+
+  // Mesmo rótulo que o cartão "Forma de pagamento" mostra, sem o
+  // fallback genérico: na conferência do encerramento, "Plano de saúde"
+  // no lugar do nome do convênio seria pedir para confirmar o nada.
+  const payerLabel = admission.payer_type === 'PRIVATE'
+    ? 'Particular'
+    : (admission.health_plan_name_snapshot || admission.health_plan?.name || null)
 
   async function withBusy(fn) {
     setBusy(true)
@@ -146,6 +168,10 @@ export default function AdmissionDetailPage() {
       alert('Diagnóstico final e desfecho são obrigatórios.')
       return
     }
+    if (!closeForm.health_plan_confirmed) {
+      alert('Confirme o convênio do atendimento antes de encerrar.')
+      return
+    }
     await withBusy(async () => {
       await api.post(`/admissions/${id}/close`, {
         version: admission.version,
@@ -198,13 +224,12 @@ export default function AdmissionDetailPage() {
       {!admission.patient?.medical_record_number && (
         <div className="alert alert-warning">
           <strong>Prontuário pendente.</strong> Este paciente foi cadastrado pelo número de
-          atendimento. Assim que souber o prontuário, informe aqui — depois de confirmado ele
-          não poderá mais ser alterado.
+          atendimento.{readOnly ? '' : ' Assim que souber o prontuário, informe aqui — depois de confirmado ele não poderá mais ser alterado.'}
 
           {/* O campo abre AQUI, e não no bloco "Editar" lá embaixo: aquele
               fica centenas de pixels abaixo da dobra, então o clique parecia
               não fazer nada. */}
-          {!informingMrn ? (
+          {readOnly ? null : !informingMrn ? (
             <button
               type="button"
               className="btn btn-primary btn-block"
@@ -253,7 +278,7 @@ export default function AdmissionDetailPage() {
             : 'Enfermaria/leito não informados'}
         </div>
 
-        {!movingBed ? (
+        {readOnly ? null : !movingBed ? (
           <button
             type="button"
             className="btn btn-outline"
@@ -339,7 +364,7 @@ export default function AdmissionDetailPage() {
             </div>
           )}
 
-          {user && todaysRound?.assigned_physician_id !== user.id && (
+          {user && !readOnly && todaysRound?.assigned_physician_id !== user.id && (
             <button
               type="button"
               className="btn btn-outline btn-block"
@@ -351,6 +376,7 @@ export default function AdmissionDetailPage() {
             </button>
           )}
 
+          {!readOnly && (
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
               {todaysRound?.assigned_physician_id ? 'Reatribuir para outro médico:' : 'Atribuir a outro médico da equipe:'}
@@ -370,6 +396,7 @@ export default function AdmissionDetailPage() {
               ))}
             </select>
           </div>
+          )}
 
           {todaysRound?.completed_at ? (
             <div style={{ marginTop: 8, padding: '10px 12px', background: '#ecfdf5', borderRadius: 6, border: '1px solid #a7f3d0', color: '#065f46', fontSize: '0.9rem' }}>
@@ -377,7 +404,7 @@ export default function AdmissionDetailPage() {
               {todaysRound.completer?.full_name || todaysRound.assigned_physician?.full_name || 'Médico'}{' '}
               em {formatDateTime(todaysRound.completed_at)}
             </div>
-          ) : (
+          ) : readOnly ? null : (
             <button
               type="button"
               className="btn btn-primary btn-block"
@@ -398,13 +425,13 @@ export default function AdmissionDetailPage() {
             <span style={{ textDecoration: p.status === 'OPEN' ? 'none' : 'line-through', color: p.status === 'OPEN' ? 'inherit' : 'var(--color-text-muted)' }}>
               {p.description}
             </span>
-            {p.status === 'OPEN' && admission.status === 'ACTIVE' && (
+            {p.status === 'OPEN' && admission.status === 'ACTIVE' && !readOnly && (
               <button className="btn btn-outline" style={{ minHeight: 32, padding: '4px 10px' }} disabled={busy}
                 onClick={() => handleResolvePending(p.id, 'DONE')}>Concluir</button>
             )}
           </div>
         ))}
-        {admission.status === 'ACTIVE' && (
+        {admission.status === 'ACTIVE' && !readOnly && (
           <form onSubmit={handleAddPending} style={{ display: 'flex', gap: 6, marginTop: 8 }}>
             <input className="input" placeholder="Nova pendência…" value={newPending} onChange={(e) => setNewPending(e.target.value)} />
             <button type="submit" className="btn btn-primary" disabled={busy}>+</button>
@@ -412,7 +439,7 @@ export default function AdmissionDetailPage() {
         )}
       </div>
 
-      {admission.status === 'ACTIVE' && (
+      {admission.status === 'ACTIVE' && !readOnly && (
         <div className="card">
           <div className="section-title" style={{ marginTop: 0 }}>Ações</div>
 
@@ -423,11 +450,17 @@ export default function AdmissionDetailPage() {
           )}
 
           {!showClose ? (
-            <button className="btn btn-primary btn-block" style={{ marginBottom: 8 }} onClick={() => setShowClose(true)}>
+            <button className="btn btn-primary btn-block" style={{ marginBottom: 8 }}
+              onClick={() => { setCloseForm(CLOSE_FORM_INICIAL); setFinalCidLabel(''); setShowClose(true) }}>
               {isSingleEval ? 'Concluir avaliação única' : 'Encerrar acompanhamento'}
             </button>
           ) : (
-            <form onSubmit={handleClose} className="card" style={{ background: 'var(--color-bg)' }}>
+            <>
+              {/* Fica FORA do <form> de encerramento de propósito: o
+                  PatientEditForm é ele mesmo um <form>, e aninhar os dois
+                  fazia o submit do cadastro borbulhar para handleClose — o
+                  médico salvava o nascimento e recebia de volta o erro
+                  "diagnóstico final e desfecho são obrigatórios". */}
               {closureBlockers.length > 0 && (
                 <div className="alert alert-warning">
                   <strong>Cadastro incompleto.</strong> Estes dados são obrigatórios para encerrar,
@@ -439,52 +472,91 @@ export default function AdmissionDetailPage() {
                   <div style={{ marginTop: 10 }}>
                     <PatientEditForm
                       patient={admission.patient}
-                      onSaved={(updatedPatient) => setAdmission((prev) => ({ ...prev, patient: updatedPatient }))}
+                      onSaved={(updatedPatient) => {
+                        setAdmission((prev) => ({ ...prev, patient: updatedPatient }))
+                        setPatientFixed(true)
+                      }}
                     />
                   </div>
                 </div>
               )}
 
-              <div className="form-group">
-                <label>Diagnóstico final (CID-10)</label>
-                <Autocomplete
-                  searchUrl="/cid10/search"
-                  valueKey="code"
-                  labelKey="description"
-                  initialLabel={finalCidLabel}
-                  renderOption={(opt) => `${opt.code} — ${opt.description}`}
-                  onSelect={(opt) => {
-                    setCloseForm({ ...closeForm, final_cid_code: opt?.code || '' })
-                    setFinalCidLabel(opt ? `${opt.code} — ${opt.description}` : '')
-                  }}
-                />
-              </div>
-              <div className="form-group">
-                <label>Alta hospitalar (opcional)</label>
-                <input type="datetime-local" className="input" value={closeForm.hospital_discharge_at}
-                  onChange={(e) => setCloseForm({ ...closeForm, hospital_discharge_at: e.target.value })} />
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  Este é o único momento em que a alta hospitalar é registrada — confira antes de
-                  confirmar. Deixe em branco se o paciente segue internado sob outra equipe.
+              {closureBlockers.length === 0 && patientFixed && (
+                <div className="alert alert-success">
+                  Cadastro do paciente completo. Já é possível encerrar o atendimento.
                 </div>
-              </div>
-              <div className="form-group">
-                <label>Desfecho</label>
-                <textarea className="input" value={closeForm.discharge_outcome}
-                  onChange={(e) => setCloseForm({ ...closeForm, discharge_outcome: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>Plano de seguimento (opcional)</label>
-                <textarea className="input" value={closeForm.followup_plan_documented}
-                  onChange={(e) => setCloseForm({ ...closeForm, followup_plan_documented: e.target.value })} />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="submit" className="btn btn-primary" disabled={busy || closureBlockers.length > 0}>
-                  Confirmar encerramento
-                </button>
-                <button type="button" className="btn btn-outline" onClick={() => setShowClose(false)}>Cancelar</button>
-              </div>
-            </form>
+              )}
+
+              <form onSubmit={handleClose} className="card" style={{ background: 'var(--color-bg)' }}>
+                <div className="form-group">
+                  <label>Diagnóstico final (CID-10)</label>
+                  <Autocomplete
+                    searchUrl="/cid10/search"
+                    valueKey="code"
+                    labelKey="description"
+                    initialLabel={finalCidLabel}
+                    renderOption={(opt) => `${opt.code} — ${opt.description}`}
+                    onSelect={(opt) => {
+                      setCloseForm({ ...closeForm, final_cid_code: opt?.code || '' })
+                      setFinalCidLabel(opt ? `${opt.code} — ${opt.description}` : '')
+                    }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Alta hospitalar (opcional)</label>
+                  <input type="datetime-local" className="input" value={closeForm.hospital_discharge_at}
+                    onChange={(e) => setCloseForm({ ...closeForm, hospital_discharge_at: e.target.value })} />
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    Este é o único momento em que a alta hospitalar é registrada — confira antes de
+                    confirmar. Deixe em branco se o paciente segue internado sob outra equipe.
+                  </div>
+                </div>
+                {/* O convênio decide para onde a conta vai (ver "Minhas
+                    Visitas" e o selo da AMHS). O encerramento é a última
+                    vez que alguém passa pelo episódio, então a conferência
+                    é aqui — com o valor à vista, e não como uma pergunta
+                    genérica de "está tudo certo?". O servidor recusa o
+                    encerramento sem ela; isto é o espelho na tela. */}
+                <div className="form-group">
+                  <label>Convênio / forma de pagamento</label>
+                  <div style={{ fontWeight: 700, fontSize: '1.02rem', margin: '2px 0 2px' }}>
+                    {payerLabel || <span style={{ color: 'var(--color-danger)' }}>Não informado</span>}
+                  </div>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 8, fontSize: '0.88rem', fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={closeForm.health_plan_confirmed}
+                      onChange={(e) => setCloseForm({ ...closeForm, health_plan_confirmed: e.target.checked })}
+                      style={{ marginTop: 3 }}
+                    />
+                    <span>Confirmo que o convênio acima está <strong>correto</strong>.</span>
+                  </label>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    Se estiver errado, cancele o encerramento e corrija em <strong>✏️ Editar
+                    atendimento</strong>, mais abaixo nesta página. Depois de encerrado o episódio
+                    vira dado de gestão e o convênio não é mais revisto.
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Desfecho</label>
+                  <textarea className="input" value={closeForm.discharge_outcome}
+                    onChange={(e) => setCloseForm({ ...closeForm, discharge_outcome: e.target.value })} required />
+                </div>
+                <div className="form-group">
+                  <label>Plano de seguimento (opcional)</label>
+                  <textarea className="input" value={closeForm.followup_plan_documented}
+                    onChange={(e) => setCloseForm({ ...closeForm, followup_plan_documented: e.target.value })} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="submit" className="btn btn-primary"
+                    disabled={busy || closureBlockers.length > 0 || !closeForm.health_plan_confirmed}>
+                    Confirmar encerramento
+                  </button>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowClose(false)}>Cancelar</button>
+                </div>
+              </form>
+            </>
           )}
 
           {!showDelete ? (
@@ -515,6 +587,7 @@ export default function AdmissionDetailPage() {
         </div>
       )}
 
+      {!readOnly && (
       <div className="card">
         <div className="section-title" style={{ marginTop: 0 }}>Editar</div>
 
@@ -549,6 +622,7 @@ export default function AdmissionDetailPage() {
           </>
         )}
       </div>
+      )}
 
       <Link to="/" style={{ display: 'inline-block', marginTop: 8 }}>← Voltar</Link>
     </div>

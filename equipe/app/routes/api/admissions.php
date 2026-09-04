@@ -24,6 +24,11 @@ Route::post('/pending-items/{pendingItem}/resolve', [PendingItemController::clas
 Route::post('/admissions/{admission}/rounds/assign', [DailyRoundController::class, 'assign'])->name('admissions.rounds.assign');
 Route::post('/admissions/{admission}/rounds/complete', [DailyRoundController::class, 'complete'])->name('admissions.rounds.complete');
 
+// As visitas assinadas pelo próprio médico autenticado (conferência e
+// faturamento). Sem parâmetro de médico de propósito: o recorte é sempre
+// quem está logado.
+Route::get('/my-rounds', [DailyRoundController::class, 'mine'])->name('rounds.mine');
+
 // Excluídos (admin) — binding explícito incluindo soft-deleted.
 Route::post('/admissions/{trashedAdmission}/restore', [AdmissionController::class, 'restore'])
     ->name('admissions.restore')->withTrashed();

@@ -61,7 +61,7 @@ class DashboardTest extends TestCase
         $this->postJson("/api/admissions/{$admission2['id']}/rounds/assign", ['assigned_physician_id' => $admin->id]);
         $this->postJson("/api/admissions/{$admission2['id']}/rounds/complete");
         $this->postJson("/api/admissions/{$admission2['id']}/close", [
-            'version' => $admission2['version'], 'final_cid_code' => 'G40.9', 'discharge_outcome' => 'Concordante.',
+            'version' => $admission2['version'], 'final_cid_code' => 'G40.9', 'discharge_outcome' => 'Concordante.', 'health_plan_confirmed' => true,
         ]);
 
         // Pendência aberta e resolvida no episódio 1.
@@ -78,7 +78,12 @@ class DashboardTest extends TestCase
         $this->assertSame(2, $data['volume']['episodes']);
         $this->assertSame(2, $data['volume']['unique_patients']);
         $this->assertSame(1, $data['volume']['currently_active']);
-        $this->assertSame(1, $data['volume']['discharges']);
+        // "Altas" deixou de ser um número só: encerramento do acompanhamento
+        // e alta hospitalar são eventos diferentes, contados pela data em que
+        // ocorreram. O episódio 2 foi encerrado em 01/08, dentro da janela;
+        // nenhuma alta hospitalar foi registrada.
+        $this->assertSame(1, $data['volume']['neurology_closures']);
+        $this->assertSame(0, $data['volume']['hospital_discharges']);
         $this->assertSame(1, $data['volume']['new_interconsults']);
         $this->assertSame(1, $data['volume']['single_evaluations']);
 
@@ -94,10 +99,15 @@ class DashboardTest extends TestCase
         $this->assertSame(1, $data['single_evaluations']['count']);
         $this->assertEquals(100.0, $data['single_evaluations']['same_day_pct']);
 
-        // Cobertura de visita considera só episódios ainda ATIVOS (admission2 já foi encerrado) —
-        // só o round do admission1 (ainda ativo) entra na contagem.
-        $this->assertSame(1, $data['visit_coverage']['visited_patient_days']);
-        $this->assertSame(1, $data['visit_coverage']['active_patient_days']);
+        // Cobertura: o denominador é dia de CALENDÁRIO sob acompanhamento, não
+        // linha de daily_rounds. Episódio 1 segue aberto de 01/08 a 05/08 = 5
+        // dias de oportunidade; episódio 2 abriu e encerrou em 01/08 = 1 dia.
+        // Foram 2 visitas assinadas (uma em cada). 2/6 = 33,3% — e não 100%,
+        // que era o que o cálculo antigo devolvia por só enxergar os dias em
+        // que alguém já tinha tocado no paciente.
+        $this->assertSame(6, $data['visit_coverage']['expected_patient_days']);
+        $this->assertSame(2, $data['visit_coverage']['visited_patient_days']);
+        $this->assertEqualsWithDelta(33.3, $data['visit_coverage']['coverage_pct'], 0.1);
     }
 
     public function test_dashboard_breaks_episodes_down_by_origin(): void

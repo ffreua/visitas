@@ -742,3 +742,606 @@ table.admin-table th {
   margin-top: 6px;
 }
 
+
+/* ==========================================================================
+   Lista impressa do dia (/imprimir)
+
+   Na TELA o bloco se comporta como qualquer outra página do app. Na
+   IMPRESSÃO o app inteiro some (barra, menu, rodapé, botões) e sobra a
+   tabela — em A4 deitado, que é o que acomoda a coluna de anotações à mão
+   sem espremer o nome do paciente.
+   ========================================================================== */
+
+/* Na tela o app tem coluna de 680px; a tabela é larga de propósito (é feita
+   para o papel deitado), então aqui ela rola na horizontal em vez de
+   espremer as colunas a ponto de virar ilegível. */
+.print-page {
+  overflow-x: auto;
+}
+
+.print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--color-text);
+  margin-bottom: 10px;
+}
+
+.print-subtitle {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.print-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  table-layout: fixed;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #94a3b8;
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+  word-wrap: break-word;
+}
+
+.print-table th {
+  background: var(--color-border-subtle);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.print-dim {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.print-pending {
+  margin: 3px 0 0;
+  padding-left: 14px;
+}
+
+.print-notes {
+  min-height: 34px;
+}
+
+.print-footer {
+  margin-top: 10px;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+@media print {
+  /* Uma linha de paciente nunca pode ser partida entre duas folhas. */
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  .topbar,
+  .menu-drawer,
+  .menu-backdrop,
+  .app-shell > footer,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page {
+    overflow: visible !important;
+  }
+
+  html, body, #root, .app-shell, .main-content {
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    display: block !important;
+  }
+
+  .print-table {
+    min-width: 0;
+    font-size: 8.5pt;
+  }
+
+  .print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  .print-notes {
+    min-width: 90px;
+  }
+
+  /* A lista do dia sai deitada (tabela larga, com coluna de anotação à
+     mão); "Minhas visitas" tem sete colunas estreitas e lê melhor em pé.
+     Página nomeada resolve as duas sem que uma estrague a outra — mesmo
+     recurso já usado pelo relatório de indicadores. */
+  @page rounds {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .rounds-print {
+    page: rounds;
+  }
+}
+
+/* Selo de faturamento ao lado do convênio. Fica legível no papel
+   preto-e-branco por peso e caixa, não por cor. */
+.amhs-tag {
+  margin-top: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ==========================================================================
+   Dashboard de indicadores
+
+   O painel é o único lugar do app com densidade de relatório: muitos números
+   por tela, lidos em sequência e comparados entre si. Por isso ele tem
+   tipografia e espaçamento próprios em vez de reaproveitar o cartão
+   assistencial, que é feito para uma decisão de cada vez.
+   ========================================================================== */
+
+/* O painel é o único conteúdo do app que ganha em largura: são muitos
+   números lidos em paralelo, não uma decisão de cada vez como o cartão do
+   paciente. `:has()` alarga só esta rota; navegador sem suporte mantém a
+   coluna padrão de 680px, que continua legível. */
+@media (min-width: 900px) {
+  .main-content:has(.dashboard) {
+    max-width: 1120px;
+  }
+}
+
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dash-context {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* Recalcular com filtro novo mantinha os números velhos na tela como se
+   fossem os novos. Esmaecer diz "isto ainda é o resultado anterior". */
+.dash-body.is-loading {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.preset-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .filter-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 860px) {
+  .filter-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 6px 0;
+  color: var(--color-primary);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+/* ---------------- KPIs ---------------- */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 960px) {
+  .kpi-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.kpi {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+}
+
+.kpi-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.kpi-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 16px;
+}
+
+.kpi-hint {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.delta {
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.delta-neutral { color: var(--color-text-muted); }
+.delta-good { color: var(--color-success); }
+.delta-bad { color: var(--color-danger); }
+.delta-flat { color: var(--color-text-muted); font-weight: 500; }
+
+/* ---------------- Faixa "hoje" ---------------- */
+
+/* Separada do relatório de período de propósito: "não visitados hoje" dentro
+   de um relatório de janeiro não significa nada. */
+.today-strip {
+  background: var(--color-primary-light);
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.today-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-dark);
+}
+
+.today-title span {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+}
+
+.today-items {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+
+.today-items strong {
+  font-size: 1.05rem;
+  color: var(--color-primary-dark);
+}
+
+.today-alert strong {
+  color: var(--color-danger);
+}
+
+/* ---------------- Cards do painel ---------------- */
+
+.dash-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dash-card-sub {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.dash-note {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.metric-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 0.9rem;
+}
+
+.metric-line:last-of-type {
+  border-bottom: none;
+}
+
+.metric-line > span:first-child {
+  color: var(--color-text-muted);
+}
+
+.summary-detail {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.value-warn {
+  color: var(--color-warning);
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+/* Item de grid nasce com min-width:auto, ou seja, largura mínima igual ao
+   min-content do conteúdo. Com o rótulo do CID em uma linha só, esse
+   min-content passava de 340px e empurrava a coluna para fora do cartão —
+   no celular a lista de diagnósticos vazava pela direita e a página inteira
+   ganhava rolagem horizontal. */
+.two-col > * {
+  min-width: 0;
+}
+
+@media (min-width: 620px) {
+  .two-col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.col-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* ---------------- Gráficos ---------------- */
+
+.chart-empty {
+  padding: 14px 0;
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.chart-empty-inline {
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+}
+
+.bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bar-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.84rem;
+  margin-bottom: 3px;
+}
+
+/* Quebra em vez de cortar com reticências: o rótulo aqui é o nome do
+   diagnóstico, e no celular não há hover para revelar o title — texto
+   cortado seria informação perdida, não resumida. `anywhere` também reduz o
+   min-content da célula, que é o que impedia a coluna de encolher. */
+.bar-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bar-row-value {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  height: 8px;
+  background: var(--color-border-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 2px;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.chart-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.coverage-layout {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.gauge {
+  text-align: center;
+}
+
+.gauge-caption {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  margin-top: -6px;
+}
+
+.coverage-detail {
+  flex: 1;
+  min-width: 200px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+/* ---------------- Qualidade dos dados ---------------- */
+
+.quality-ok {
+  color: var(--color-success);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.quality-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quality-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.quality-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 800;
+  font-size: 0.84rem;
+}
+
+/* ---------------- Impressão do relatório ---------------- */
+
+@media print {
+  /* A lista de visita sai deitada (tabela larga); o relatório de indicadores
+     é uma coluna de cards e lê melhor em pé. Página nomeada resolve os dois
+     sem que um estrague o outro. */
+  @page dashboard {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .dashboard {
+    page: dashboard;
+  }
+
+  .dashboard .dash-body.is-loading {
+    opacity: 1;
+  }
+
+  .dashboard .card,
+  .dashboard .kpi,
+  .dashboard .today-strip {
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .dashboard .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .chart-scroll,
+  .table-scroll {
+    overflow: visible !important;
+  }
+}

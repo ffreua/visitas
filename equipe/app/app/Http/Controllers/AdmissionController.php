@@ -309,7 +309,11 @@ class AdmissionController extends Controller
         });
 
         $action = $admission->isSingleEvaluation() ? 'COMPLETE_SINGLE_EVALUATION' : 'CLOSE_FOLLOWUP';
-        AuditLogger::logModel($action, $admission);
+
+        // Registra a conferência do convênio junto do encerramento: numa
+        // discussão de faturamento depois, a pergunta é "quem disse que o
+        // pagador estava certo, e quando" — e a resposta fica aqui.
+        AuditLogger::logModel($action, $admission, ['health_plan_confirmed']);
 
         return response()->json($admission->load(self::EAGER));
     }

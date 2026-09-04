@@ -43,7 +43,7 @@ class UserController extends Controller
             'full_name' => ['required', 'string', 'max:255'],
             'crm' => ['nullable', 'string', 'max:50'],
             'username' => ['required', 'string', 'max:100', 'unique:users,username'],
-            'role' => ['required', Rule::in(['ADMIN', 'PHYSICIAN'])],
+            'role' => ['required', Rule::in(['ADMIN', 'PHYSICIAN', 'OBSERVER'])],
         ]);
 
         $user = User::create([
@@ -69,10 +69,13 @@ class UserController extends Controller
             // O login pode ter sido digitado errado no cadastro; único
             // ignorando o próprio registro para não colidir consigo mesmo.
             'username' => ['sometimes', 'required', 'string', 'max:100', Rule::unique('users', 'username')->ignore($user->id)],
-            'role' => ['sometimes', Rule::in(['ADMIN', 'PHYSICIAN'])],
+            'role' => ['sometimes', Rule::in(['ADMIN', 'PHYSICIAN', 'OBSERVER'])],
         ]);
 
-        if (($data['role'] ?? $user->role) === 'PHYSICIAN' && $user->isLastActiveAdmin()) {
+        // Qualquer papel que não seja ADMIN é rebaixamento — com OBSERVER no
+        // jogo, comparar só com PHYSICIAN deixaria o último admin virar
+        // observador e trancar o sistema sem ninguém para administrá-lo.
+        if (($data['role'] ?? $user->role) !== 'ADMIN' && $user->isLastActiveAdmin()) {
             throw ValidationException::withMessages(['role' => self::LAST_ADMIN_MESSAGE]);
         }
 
